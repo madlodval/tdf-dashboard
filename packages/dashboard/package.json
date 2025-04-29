@@ -1,0 +1,24 @@
+{
+  "name": "@tdf/oi-ui",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.4",
+    "alpinejs": "^3.14.9",
+    "astro": "^5.7.5",
+    "chart.js": "^4.4.9",
+    "echarts": "^5.6.0",
+    "lightweight-charts": "^5.0.6",
+    "tailwindcss": "^4.1.4"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3"
+  }
+}

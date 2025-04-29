@@ -1,0 +1,19 @@
+{
+  "name": "@tdf/repositories",
+  "version": "1.0.0",
+  "description": "Database repositories for TradingDifferent project (supports MySQL and PostgreSQL)",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "eslint . --ext .js,.mjs",
+    "format": "prettier --write .",
+    "build": "echo \"No build step required\""
+  },
+  "keywords": ["database", "repository", "mysql", "postgresql", "trading"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mysql2": "^3.9.7"
+  }
+}

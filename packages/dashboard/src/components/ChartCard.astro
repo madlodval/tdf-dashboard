@@ -1,0 +1,37 @@
+---
+// Define props for the component
+export interface Props {
+    title?: string; // Title is required
+    description?: string; // Description is optional
+    class?: string; // Class for the main container div
+}
+
+const { title, description, class: className } = Astro.props;
+---
+
+<div class={className}>
+    {title && <h2 class="font-semibold text-lg">{title}</h2>}
+
+    {description && <p class="mt-2 text-gray-600">{description}</p>}
+
+    <div class="js-row grid grid-cols-1 lg:grid-cols-1 gap-6">
+        <div class="js-col relative bg-white p-0 md:px-2 md:py-4 rounded-md shadow h-96 md:h-auto">
+
+            <div class="sm:hidden absolute top-0 left-0 w-full h-full bg-white/70 backdrop-blur rounded-md">
+                <div class="flex flex-col h-full gap-12 items-center justify-center p-4">
+                    <div class="w-[100px] h-[50px] animation-rotate-phone border-2 border-black rounded-md flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="w-6 h-6 rotate-90 text-gray-900" fill="currentColor" stroke="none">
+                            <path d="M463.5 224l8.5 0c13.3 0 24-10.7 24-24l0-128c0-9.7-5.8-18.5-14.8-22.2s-19.3-1.7-26.2 5.2L413.4 96.6c-87.6-86.5-228.7-86.2-315.8 1c-87.5 87.5-87.5 229.3 0 316.8s229.3 87.5 316.8 0c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0c-62.5 62.5-163.8 62.5-226.3 0s-62.5-163.8 0-226.3c62.2-62.2 162.7-62.5 225.3-1L327 183c-6.9 6.9-8.9 17.2-5.2 26.2s12.5 14.8 22.2 14.8l119.5 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-gray-900 text-center">
+                        Please, put your phone/tablet in landscape mode.
+                    </div>
+                </div>
+            </div>
+
+            <slot />
+
+        </div>
+    </div>
+</div>

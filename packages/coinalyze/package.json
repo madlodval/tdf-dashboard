@@ -1,0 +1,30 @@
+{
+  "name": "@tdf/coinalyze",
+  "version": "1.0.0",
+  "description": "Coinalyze integration for TradingDifferent project",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "eslint . --ext .js,.mjs",
+    "format": "prettier --write .",
+    "build": "echo \"No build step required\""
+  },
+  "keywords": [
+    "coinalyze",
+    "integration",
+    "trading",
+    "tdf"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bin": {
+    "tdf-coinalyze-downloader": "bin/downloader.js",
+    "tdf-coinalyze-importer": "bin/importer.js"
+  },
+  "dependencies": {
+    "@tdf/repositories": "workspace:^",
+    "dotenv": "^16.4.5",
+    "yargs": "^17.7.2"
+  }
+}
