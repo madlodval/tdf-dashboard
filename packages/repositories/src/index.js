@@ -2,6 +2,8 @@ import { BaseRepository, DatabaseFactory } from './db.js'
 
 export { DatabaseFactory }
 
+export const INTERVAL_BASE = 300
+
 // --- UTILIDAD UTC SEGURA ---
 // Convierte cualquier fecha a 'YYYY-MM-DD HH:mm:ss' UTC, compatible con MySQL y PostgreSQL
 function toUtcDatetimeString (date) {
@@ -187,6 +189,15 @@ export class IntervalRepository extends BaseRepository {
     if (rows.length === 0) return null
     return rows[0].seconds
   }
+
+  async findAll () {
+    const [rows] = await this.query(`SELECT id, name, seconds FROM ${this.quotedTableName} ORDER BY seconds ASC`)
+    return rows.map(row => ({
+      id: +row.id,
+      name: row.name,
+      seconds: +row.seconds
+    }))
+  }
 }
 
 // Base class for sync repositories
@@ -194,39 +205,46 @@ class BaseSyncRepository extends BaseRepository {
   constructor (db, tableName) {
     super(db, tableName)
     this.syncTableName = `sync_${tableName}`
-    console.log('TABLE: ' + tableName)
   }
 
   get quotedSyncTableName () {
     return this.quote(this.syncTableName)
   }
 
+  get baseTableName () {
+    return `base_${this.tableName}`
+  }
+
+  get quotedBaseTableName () {
+    return this.quote(this.baseTableName)
+  }
+
+  async getMaxBaseTimestamp () {
+    const [maxBaseTimestampRow] = await this.query(
+      `SELECT MAX(timestamp) as max_ts FROM ${this.quotedBaseTableName}`
+    )
+    return maxBaseTimestampRow[0].max_ts ? new Date(maxBaseTimestampRow[0].max_ts).getTime() / 1000 : 0
+  }
+
   async getLastSyncTimestamp (intervalId) {
     const [rows] = await this.query(
-      `SELECT last_sync_timestamp FROM ${this.quotedSyncTableName} WHERE interval_id = ?`,
+      `SELECT UNIX_TIMESTAMP(last_sync_timestamp) as last_sync_timestamp FROM ${this.quotedSyncTableName} WHERE interval_id = ?`,
       [intervalId]
     )
-    return rows.length > 0 ? rows[0].last_sync_timestamp : null
+    return rows.length > 0 && rows[0].last_sync_timestamp !== null ? +rows[0].last_sync_timestamp : 0
   }
 
   async updateLastSyncTimestamp (intervalId, timestamp) {
+    const timestampString = toUtcDatetimeString(timestamp)
     await this.execute(
       `UPDATE ${this.quotedSyncTableName} SET last_sync_timestamp = ? WHERE interval_id = ?`,
-      [timestamp, intervalId]
+      [timestampString, intervalId]
     )
   }
 }
 
 // Base class for data repositories
 class BaseDataRepository extends BaseRepository {
-  get masterTableName () {
-    return `${this.tableName}_master`
-  }
-
-  get quotedMasterTableName () {
-    return this.quote(this.masterTableName)
-  }
-
   async save (data) {
     return this.replaceInto({
       exchange_id: data.exchangeId,
@@ -251,9 +269,9 @@ class BaseDataRepository extends BaseRepository {
     return rows.map(this.mapRow.bind(this))
   }
 
-  async syncFromMaster () {
+  async syncFromBase () {
     const syncRepo = new this.constructor.SyncRepository(this.db)
-    return syncRepo.syncFromMaster()
+    return syncRepo.syncFromBase()
   }
 }
 
@@ -263,47 +281,53 @@ class LiquidationSyncRepository extends BaseSyncRepository {
     super(db, 'liquidations')
   }
 
-  async syncFromMaster () {
-    const intervalRepo = new IntervalRepository(this.db)
-    const [intervals] = await intervalRepo.query(`SELECT id, seconds FROM ${intervalRepo.quotedTableName}`)
-    let totalSynced = 0
+  async syncFromBase () {
+    return this.transaction(async (db) => {
+      const intervalRepo = new IntervalRepository(db)
+      const intervals = await intervalRepo.findAll()
+      let totalSynced = 0
+      const maxBaseTimestamp = await this.getMaxBaseTimestamp()
+      for (const interval of intervals) {
+        const lastSync = await this.getLastSyncTimestamp(interval.id)
+        const syncStartTime = lastSync + 1
+        if (maxBaseTimestamp < syncStartTime) {
+          continue
+        }
+        const sql = `
+          INSERT INTO ${this.quotedTableName} (exchange_id, asset_id, interval_id, timestamp, longs, shorts)
+          SELECT
+            exchange_id,
+            asset_id,
+            ? as interval_id,
+            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?) as timestamp,
+            SUM(longs) as longs,
+            SUM(shorts) as shorts
+          FROM ${this.quotedBaseTableName}
+          WHERE UNIX_TIMESTAMP(timestamp) >= ? AND UNIX_TIMESTAMP(timestamp) <= ?
+          GROUP BY exchange_id, asset_id, FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?)
+          ON DUPLICATE KEY UPDATE
+            longs = VALUES(longs),
+            shorts = VALUES(shorts);
+        `
+        const result = await this.execute(sql, [
+          interval.id,
+          interval.seconds,
+          interval.seconds,
+          syncStartTime,
+          maxBaseTimestamp,
+          interval.seconds,
+          interval.seconds
+        ])
 
-    for (const interval of intervals) {
-      const lastSync = await this.getLastSyncTimestamp(interval.id)
+        const affectedRows = result ? (result.affectedRows || 0) : 0
+        console.log(`Synced ${affectedRows} liquidation rows for interval ${interval.name}.`)
+        totalSynced += affectedRows
 
-      const result = await this.execute(`
-        INSERT INTO ${this.quotedTableName} (exchange_id, asset_id, interval_id, timestamp, longs, shorts)
-        SELECT
-          exchange_id,
-          asset_id,
-          ? as interval_id,
-          DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as timestamp,
-          SUM(longs) as longs,
-          SUM(shorts) as shorts
-        FROM ${this.quotedMasterTableName}
-        WHERE timestamp > ?
-          AND NOT EXISTS (
-            SELECT 1 FROM ${this.quotedTableName}
-            WHERE ${this.quotedTableName}.exchange_id = ${this.quotedMasterTableName}.exchange_id
-            AND ${this.quotedTableName}.asset_id = ${this.quotedMasterTableName}.asset_id
-            AND ${this.quotedTableName}.interval_id = ?
-            AND ${this.quotedTableName}.timestamp = DATE_FORMAT(${this.quotedMasterTableName}.timestamp, '%Y-%m-%d %H:00:00')
-          )
-        GROUP BY exchange_id, asset_id, DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00')
-      `, [interval.id, lastSync, interval.id])
-
-      // Update last sync timestamp
-      const [maxTimestamp] = await this.query(
-        `SELECT MAX(timestamp) as max_ts FROM ${this.quotedMasterTableName}`
-      )
-      if (maxTimestamp[0].max_ts) {
-        await this.updateLastSyncTimestamp(interval.id, maxTimestamp[0].max_ts)
+        await this.updateLastSyncTimestamp(interval.id, maxBaseTimestamp)
       }
 
-      totalSynced += result[0].affectedRows
-    }
-
-    return totalSynced
+      return totalSynced
+    })
   }
 }
 
@@ -313,50 +337,56 @@ class VolumeSyncRepository extends BaseSyncRepository {
     super(db, 'volume')
   }
 
-  async syncFromMaster () {
-    const intervalRepo = new IntervalRepository(this.db)
-    const [intervals] = await intervalRepo.query(`SELECT id, seconds FROM ${intervalRepo.quotedTableName}`)
-    let totalSynced = 0
-
-    for (const interval of intervals) {
-      const lastSync = await this.getLastSyncTimestamp(interval.id)
-
-      const result = await this.execute(`
-        INSERT INTO ${this.quotedTableName} (exchange_id, asset_id, interval_id, timestamp, open_value, high_value, low_value, close_value, volume_value)
-        SELECT
-          exchange_id,
-          asset_id,
-          ? as interval_id,
-          DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as timestamp,
-          FIRST_VALUE(open_value) OVER (PARTITION BY exchange_id, asset_id, DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') ORDER BY timestamp) as open_value,
-          MAX(high_value) as high_value,
-          MIN(low_value) as low_value,
-          LAST_VALUE(close_value) OVER (PARTITION BY exchange_id, asset_id, DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') ORDER BY timestamp ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as close_value,
-          SUM(volume_value) as volume_value
-        FROM ${this.quotedMasterTableName}
-        WHERE timestamp > ?
-          AND NOT EXISTS (
-            SELECT 1 FROM ${this.quotedTableName}
-            WHERE ${this.quotedTableName}.exchange_id = ${this.quotedMasterTableName}.exchange_id
-            AND ${this.quotedTableName}.asset_id = ${this.quotedMasterTableName}.asset_id
-            AND ${this.quotedTableName}.interval_id = ?
-            AND ${this.quotedTableName}.timestamp = DATE_FORMAT(${this.quotedMasterTableName}.timestamp, '%Y-%m-%d %H:00:00')
-          )
-        GROUP BY exchange_id, asset_id, DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00')
-      `, [interval.id, lastSync, interval.id])
-
-      // Update last sync timestamp
-      const [maxTimestamp] = await this.query(
-        `SELECT MAX(timestamp) as max_ts FROM ${this.quotedMasterTableName}`
-      )
-      if (maxTimestamp[0].max_ts) {
-        await this.updateLastSyncTimestamp(interval.id, maxTimestamp[0].max_ts)
+  async syncFromBase () {
+    return this.transaction(async (db) => {
+      const intervalRepo = new IntervalRepository(db)
+      const intervals = await intervalRepo.findAll()
+      let totalSynced = 0
+      const maxBaseTimestamp = await this.getMaxBaseTimestamp()
+      for (const interval of intervals) {
+        const lastSync = await this.getLastSyncTimestamp(interval.id)
+        const syncStartTime = lastSync + 1
+        if (maxBaseTimestamp < syncStartTime) {
+          continue
+        }
+        const sql = `
+          INSERT INTO ${this.quotedTableName} (exchange_id, asset_id, interval_id, timestamp, open_value, high_value, low_value, close_value, volume_value)
+          SELECT
+            exchange_id,
+            asset_id,
+            ? as interval_id,
+            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?) as timestamp,
+            SUBSTRING_INDEX(GROUP_CONCAT(open_value ORDER BY timestamp ASC), ',', 1) as open_value,
+            MAX(high_value) as high_value,
+            MIN(low_value) as low_value,
+            SUBSTRING_INDEX(GROUP_CONCAT(close_value ORDER BY timestamp DESC), ',', 1) as close_value,
+            SUM(volume_value) as volume_value
+          FROM ${this.quotedBaseTableName}
+          WHERE UNIX_TIMESTAMP(timestamp) >= ? AND UNIX_TIMESTAMP(timestamp) <= ?
+          GROUP BY exchange_id, asset_id, FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?)
+          ON DUPLICATE KEY UPDATE
+              open_value = VALUES(open_value),
+              high_value = VALUES(high_value),
+              low_value = VALUES(low_value),
+              close_value = VALUES(close_value),
+              volume_value = VALUES(volume_value);
+        `
+        const [result] = await this.execute(sql, [
+          interval.id,
+          interval.seconds,
+          interval.seconds,
+          syncStartTime,
+          maxBaseTimestamp,
+          interval.seconds,
+          interval.seconds
+        ])
+        const affectedRows = result ? (result.affectedRows || 0) : 0
+        console.log(`Synced ${affectedRows} liquidation rows for interval ${interval.name}.`)
+        totalSynced += affectedRows
+        await this.updateLastSyncTimestamp(interval.id, maxBaseTimestamp)
       }
-
-      totalSynced += result[0].affectedRows
-    }
-
-    return totalSynced
+      return totalSynced
+    })
   }
 }
 
@@ -427,13 +457,13 @@ export class VolumeRepository extends BaseDataRepository {
 }
 
 // Repositorio para datos crudos de Volumen (ej. 5 minutos)
-export class VolumeMasterRepository extends BaseRepository {
+export class VolumeBaseRepository extends BaseRepository {
   constructor (db) {
-    super(db, 'volume_master')
+    super(db, 'base_volume')
   }
 
   async save (data) {
-    // Guarda datos crudos de Volumen (ej. 5 minutos) en volume_master.
+    // Guarda datos crudos de Volumen (ej. 5 minutos) en volume_base.
     return this.replaceInto({
       exchange_id: data.exchangeId,
       asset_id: data.assetId,
@@ -490,13 +520,13 @@ export class VolumeMasterRepository extends BaseRepository {
 }
 
 // Repositorio para datos crudos de Liquidaciones (ej. 5 minutos)
-export class LiquidationMasterRepository extends BaseRepository {
+export class LiquidationBaseRepository extends BaseRepository {
   constructor (db) {
-    super(db, 'liquidations_master')
+    super(db, 'base_liquidations')
   }
 
   async save (data) {
-    // Guarda datos crudos de Liquidaciones (ej. 5 minutos) en liquidations_master.
+    // Guarda datos crudos de Liquidaciones (ej. 5 minutos) en liquidations_base.
     return this.replaceInto({
       exchange_id: data.exchangeId,
       asset_id: data.assetId,

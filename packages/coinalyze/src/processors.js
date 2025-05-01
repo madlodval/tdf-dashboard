@@ -5,8 +5,8 @@ import {
   IntervalRepository,
   VolumeRepository,
   LiquidationRepository,
-  VolumeMasterRepository, // Repositorio para datos crudos de 5min
-  LiquidationMasterRepository // Repositorio para datos crudos de 5min
+  VolumeBaseRepository, // Repositorio para datos crudos de 5min
+  LiquidationBaseRepository // Repositorio para datos crudos de 5min
 } from '@tdf/repositories'
 
 const MASTER_INTERVAL = 300
@@ -86,13 +86,13 @@ export async function processLiquidations ({ db, symbol, data, interval }) {
     const assetRepo = new AssetRepository(db)
     const exchangeRepo = new ExchangeRepository(db)
     const liquidationRepo = new LiquidationRepository(db)
-    const liquidationRepoMaster = new LiquidationMasterRepository(db)
+    const liquidationRepoBase = new LiquidationBaseRepository(db)
     const intervalRepo = new IntervalRepository(db)
     const assetId = await assetRepo.findIdBySymbol(symbol)
     if (!assetId) throw new Error(`Asset not found: ${symbol}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
     if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isMasterInterval = seconds === MASTER_INTERVAL
+    const isBaseInterval = seconds === MASTER_INTERVAL
 
     const exchangeIdCache = new Map()
 
@@ -122,8 +122,8 @@ export async function processLiquidations ({ db, symbol, data, interval }) {
           shorts: entry.s
         }
         await liquidationRepo.save(data)
-        if (isMasterInterval) {
-          await liquidationRepoMaster.save(data)
+        if (isBaseInterval) {
+          await liquidationRepoBase.save(data)
         }
       }
     }
@@ -137,13 +137,13 @@ export async function processVolume ({ db, symbol, data, interval }) {
     const assetRepo = new AssetRepository(db)
     const exchangeRepo = new ExchangeRepository(db)
     const volumeRepo = new VolumeRepository(db)
-    const volumeRepoMaster = new VolumeMasterRepository(db)
+    const volumeRepoBase = new VolumeBaseRepository(db)
     const intervalRepo = new IntervalRepository(db)
     const assetId = await assetRepo.findIdBySymbol(symbol)
     if (!assetId) throw new Error(`Asset not found: ${symbol}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
     if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isMasterInterval = seconds === MASTER_INTERVAL
+    const isBaseInterval = seconds === MASTER_INTERVAL
 
     // Cache para exchangeId por código
     const exchangeIdCache = new Map()
@@ -198,8 +198,8 @@ export async function processVolume ({ db, symbol, data, interval }) {
           volume: ohlc.volume // totalizado
         }
         await volumeRepo.save(data)
-        if (isMasterInterval) {
-          await volumeRepoMaster.save(data)
+        if (isBaseInterval) {
+          await volumeRepoBase.save(data)
         }
         totalSaved++
       }

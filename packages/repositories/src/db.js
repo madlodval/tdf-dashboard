@@ -247,6 +247,10 @@ export class BaseRepository {
     this.#tableName = tableName
   }
 
+  get db () {
+    return this.#db
+  }
+
   get tableName () {
     return this.#tableName
   }
@@ -265,6 +269,10 @@ export class BaseRepository {
 
   async replaceInto (data, uniqueKeys) {
     return this.#db.replaceInto(this.tableName, data, uniqueKeys)
+  }
+
+  async transaction (callback) {
+    return this.#db.transaction(callback.bind(null, this.#db))
   }
 
   quote (field) {

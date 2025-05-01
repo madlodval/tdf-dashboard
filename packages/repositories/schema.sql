@@ -1,13 +1,13 @@
-DROP TABLE IF EXISTS volume_master;
-DROP TABLE IF EXISTS liquidations_master;
+DROP TABLE IF EXISTS base_volume;
+DROP TABLE IF EXISTS base_liquidations;
 DROP TABLE IF EXISTS volume;
 DROP TABLE IF EXISTS liquidations;
 DROP TABLE IF EXISTS open_interest;
 DROP TABLE IF EXISTS exchanges;
-DROP TABLE IF EXISTS assets;
 DROP TABLE IF EXISTS sync_liquidations;
 DROP TABLE IF EXISTS sync_volume;
 DROP TABLE IF EXISTS intervals;
+DROP TABLE IF EXISTS assets;
 
 CREATE TABLE exchanges (
   id TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -62,7 +62,7 @@ CREATE TABLE open_interest (
 );
 
 -- Nuevas tablas para datos crudos (ej. 5 minutos)
-CREATE TABLE volume_master (
+CREATE TABLE base_volume (
     exchange_id TINYINT UNSIGNED NOT NULL,
     asset_id SMALLINT UNSIGNED NOT NULL,
     timestamp TIMESTAMP NOT NULL,
@@ -72,21 +72,21 @@ CREATE TABLE volume_master (
     close_value DECIMAL(20, 8) NOT NULL,
     volume_value DECIMAL(20, 8),
     PRIMARY KEY (exchange_id, asset_id, timestamp),
-    INDEX idx_vol5_asset_timestamp (asset_id, timestamp),
-    CONSTRAINT fk_vol5_exchange FOREIGN KEY (exchange_id) REFERENCES exchanges(id),
-    CONSTRAINT fk_vol5_asset FOREIGN KEY (asset_id) REFERENCES assets(id)
+    INDEX idx_vol_base_asset_timestamp (asset_id, timestamp),
+    CONSTRAINT fk_vol_base_exchange FOREIGN KEY (exchange_id) REFERENCES exchanges(id),
+    CONSTRAINT fk_vol_base_asset FOREIGN KEY (asset_id) REFERENCES assets(id)
 );
 
-CREATE TABLE liquidations_master (
+CREATE TABLE base_liquidations (
     exchange_id TINYINT UNSIGNED NOT NULL,
     asset_id SMALLINT UNSIGNED NOT NULL,
     timestamp TIMESTAMP NOT NULL,
     longs DECIMAL(20, 8) NOT NULL,
     shorts DECIMAL(20, 8) NOT NULL,
     PRIMARY KEY (exchange_id, asset_id, timestamp),
-    INDEX idx_liq5_asset_timestamp (asset_id, timestamp),
-    CONSTRAINT fk_liq5_exchange FOREIGN KEY (exchange_id) REFERENCES exchanges(id),
-    CONSTRAINT fk_liq5_asset FOREIGN KEY (asset_id) REFERENCES assets(id)
+    INDEX idx_liq_base_asset_timestamp (asset_id, timestamp),
+    CONSTRAINT fk_liq_base_exchange FOREIGN KEY (exchange_id) REFERENCES exchanges(id),
+    CONSTRAINT fk_liq_base_asset FOREIGN KEY (asset_id) REFERENCES assets(id)
 );
 
 CREATE TABLE volume (
@@ -145,11 +145,10 @@ INSERT IGNORE INTO sync_volume (interval_id, last_sync_timestamp)
 SELECT id, '1970-01-01 00:00:00'
 FROM intervals;
 
--- Truncar tablas si ya existen y quieres empezar limpio
 
 TRUNCATE TABLE open_interest;
-TRUNCATE TABLE volume_master;
-TRUNCATE TABLE liquidations_master;
+TRUNCATE TABLE base_volume;
+TRUNCATE TABLE base_liquidations;
 TRUNCATE TABLE volume;
 TRUNCATE TABLE liquidations;
 

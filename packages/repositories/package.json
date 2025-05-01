@@ -5,19 +5,20 @@
   "main": "src/index.js",
   "type": "module",
   "bin": {
-    "sync-master": "./bin/sync-master.js"
+    "sync": "./bin/sync.js"
   },
   "scripts": {
     "test": "echo \"No tests specified\" && exit 0",
     "lint": "eslint . --ext .js,.mjs",
     "format": "prettier --write .",
     "build": "echo \"No build step required\"",
-    "sync-master": "node ./bin/sync-master.js"
+    "sync": "node ./bin/sync.js"
   },
   "keywords": ["database", "repository", "mysql", "postgresql", "trading"],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mysql2": "^3.9.7"
+    "mysql2": "^3.9.7",
+    "dotenv": "^16.4.5"
   }
 }
