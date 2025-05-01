@@ -240,24 +240,31 @@ export class DatabaseFactory {
 
 export class BaseRepository {
   #db
+  #tableName
 
-  constructor (db) {
+  constructor (db, tableName) {
     this.#db = db
+    this.#tableName = tableName
   }
 
-  async query (sql, params) {
-    await this.#db.ensureConnected()
+  get tableName () {
+    return this.#tableName
+  }
+
+  get quotedTableName () {
+    return this.quote(this.tableName)
+  }
+
+  async query (sql, params = []) {
     return this.#db.query(sql, params)
   }
 
-  async execute (sql, params) {
-    await this.#db.ensureConnected()
+  async execute (sql, params = []) {
     return this.#db.execute(sql, params)
   }
 
-  async replaceInto (table, data, uniqueKeys = []) {
-    await this.#db.ensureConnected()
-    return this.#db.replaceInto(table, data, uniqueKeys)
+  async replaceInto (data, uniqueKeys) {
+    return this.#db.replaceInto(this.tableName, data, uniqueKeys)
   }
 
   quote (field) {
