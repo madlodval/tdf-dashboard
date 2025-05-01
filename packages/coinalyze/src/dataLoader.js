@@ -1,14 +1,14 @@
 import { access, readFile } from 'fs/promises'
 
 export class JsonDataLoader {
-  constructor(filePath) {
+  constructor (filePath) {
     if (!filePath) {
       throw new Error('JSON file path is required.')
     }
     this.filePath = filePath
   }
 
-  async load() {
+  async load () {
     try {
       await access(this.filePath)
     } catch {

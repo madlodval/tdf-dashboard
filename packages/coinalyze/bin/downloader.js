@@ -98,18 +98,18 @@ if (!fs.existsSync(storageDir)) {
 }
 const filename = path.join(storageDir, `${symbol.toLowerCase()}_${interval}_${resource}.json`)
 
-async function handler() {
+async function handler () {
   const cache = new JsonCache(storageDir, 86400)
   const client = new Coinalyze(process.env.COINALYZE_API_KEY)
   const futureMarkets = await cache.remember('future-markets', async () => client.getFutureMarkets())
   // const spotMarkets = await cache.remember('spot-markets', async () => client.getSpotMarkets())
   // const symbols = client.getSymbolForAsset(futureMarkets, symbol.toUpperCase())
-  const symbols = ['BTCUSD_PERP.A'];
+  const symbols = ['BTCUSD_PERP.A']
   const res = await client[RESOURCES[resource]]({ symbols, ...params })
   fs.writeFileSync(filename, JSON.stringify(res), 'utf8')
 }
 
-function getDefaultRange(interval) {
+function getDefaultRange (interval) {
   const now = Math.floor(Date.now() / 1000)
   switch (interval) {
     case INTERVAL_ONE_MIN:
@@ -130,7 +130,7 @@ function getDefaultRange(interval) {
   }
 }
 
-function parseDateOrTimestamp(val, fallback, isEndOfDay = false) {
+function parseDateOrTimestamp (val, fallback, isEndOfDay = false) {
   if (!val) return fallback
   if (/^\d+$/.test(val)) return parseInt(val, 10)
   const d = new Date(val)

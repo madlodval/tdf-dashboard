@@ -21,7 +21,8 @@ import {
   INTERVAL_FOUR_HOUR,
   INTERVAL_SIX_HOUR,
   INTERVAL_TWELVE_HOUR,
-  INTERVAL_DAILY
+  INTERVAL_DAILY,
+  INTERVAL_CONVERT
 } from '../src/client.js'
 import { RESOURCE_OI, RESOURCE_LQ, RESOURCE_VL } from '../src/helpers.js'
 
@@ -97,7 +98,7 @@ async function handler() {
     data = await dataLoader.load()
     await db.connect()
     const processor = processors[resource]
-    await processor({ db, symbol: symbol.toUpperCase(), data, interval })
+    await processor({ db, symbol: symbol.toUpperCase(), data, interval: INTERVAL_CONVERT[interval] })
     console.log('Import finished.')
   } catch (error) {
     console.error('-----------------------------------------')

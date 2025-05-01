@@ -11,6 +11,19 @@ export const INTERVAL_SIX_HOUR = '6hour'
 export const INTERVAL_TWELVE_HOUR = '12hour'
 export const INTERVAL_DAILY = 'daily'
 
+export const INTERVAL_CONVERT = {
+  [INTERVAL_ONE_MIN]: '1m',
+  [INTERVAL_FIVE_MIN]: '5m',
+  [INTERVAL_FIFTEEN_MIN]: '15m',
+  [INTERVAL_THIRTY_MIN]: '30m',
+  [INTERVAL_ONE_HOUR]: '1h',
+  [INTERVAL_TWO_HOUR]: '2h',
+  [INTERVAL_FOUR_HOUR]: '4h',
+  [INTERVAL_SIX_HOUR]: '6h',
+  [INTERVAL_TWELVE_HOUR]: '12h',
+  [INTERVAL_DAILY]: '1d'
+}
+
 const BASE_URL = 'https://api.coinalyze.net/v1'
 const DELAY = 2000 // milisegundos
 const MAX_RETRY = 3
@@ -39,8 +52,8 @@ export class Coinalyze {
 
   getSymbolForAsset (markets, ...assets) {
     const symbolExchanges = []
-    for (const { symbol, base_asset, quote_asset } of markets) {
-      if (assets.includes(base_asset) && ['USD', 'USDT', 'USDC'].includes(quote_asset)) {
+    for (const { symbol, base_asset: baseAsset, quote_asset: quoteAsset } of markets) {
+      if (assets.includes(baseAsset) && ['USD', 'USDT', 'USDC'].includes(quoteAsset)) {
         symbolExchanges.push(symbol)
       }
     }
@@ -120,7 +133,7 @@ export class Coinalyze {
         const retryAfter = parseInt(response.headers.get('Retry-After')) || (DELAY / 1000)
         if (retries <= MAX_RETRY) {
           console.log('RETRY:', retryAfter)
-          await new Promise(res => setTimeout(res, retryAfter * 1000))
+          await new Promise(resolve => setTimeout(resolve, retryAfter * 1000))
           continue
         }
       }

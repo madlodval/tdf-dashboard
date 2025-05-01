@@ -5,6 +5,9 @@ CURRENT_YEAR=$(date +%Y)
 
 # Normaliza el intervalo
 case "$RAW_INTERVAL" in
+  5m)
+    INTERVAL="5min"
+    ;;
   1h)
     INTERVAL="1hour"
     ;;
