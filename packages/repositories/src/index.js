@@ -2,6 +2,7 @@ import { BaseRepository, DatabaseFactory } from './db.js'
 
 export { DatabaseFactory }
 
+// Interval base in seconds for 5 minutes
 export const INTERVAL_BASE = 300
 
 // --- UTILIDAD UTC SEGURA ---
@@ -288,6 +289,9 @@ class LiquidationSyncRepository extends BaseSyncRepository {
       let totalSynced = 0
       const maxBaseTimestamp = await this.getMaxBaseTimestamp()
       for (const interval of intervals) {
+        if (interval.seconds === INTERVAL_BASE) {
+          continue // default is sync on import
+        }
         const lastSync = await this.getLastSyncTimestamp(interval.id)
         const syncStartTime = lastSync + 1
         if (maxBaseTimestamp < syncStartTime) {
@@ -305,6 +309,7 @@ class LiquidationSyncRepository extends BaseSyncRepository {
           FROM ${this.quotedBaseTableName}
           WHERE UNIX_TIMESTAMP(timestamp) >= ? AND UNIX_TIMESTAMP(timestamp) <= ?
           GROUP BY exchange_id, asset_id, FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?)
+          HAVING COUNT(*) = (? / ?)
           ON DUPLICATE KEY UPDATE
             longs = VALUES(longs),
             shorts = VALUES(shorts);
@@ -316,7 +321,9 @@ class LiquidationSyncRepository extends BaseSyncRepository {
           syncStartTime,
           maxBaseTimestamp,
           interval.seconds,
-          interval.seconds
+          interval.seconds,
+          interval.seconds,
+          INTERVAL_BASE
         ])
 
         const affectedRows = result ? (result.affectedRows || 0) : 0
@@ -344,6 +351,9 @@ class VolumeSyncRepository extends BaseSyncRepository {
       let totalSynced = 0
       const maxBaseTimestamp = await this.getMaxBaseTimestamp()
       for (const interval of intervals) {
+        if (interval.seconds === INTERVAL_BASE) {
+          continue // default is sync on import
+        }
         const lastSync = await this.getLastSyncTimestamp(interval.id)
         const syncStartTime = lastSync + 1
         if (maxBaseTimestamp < syncStartTime) {
@@ -364,6 +374,7 @@ class VolumeSyncRepository extends BaseSyncRepository {
           FROM ${this.quotedBaseTableName}
           WHERE UNIX_TIMESTAMP(timestamp) >= ? AND UNIX_TIMESTAMP(timestamp) <= ?
           GROUP BY exchange_id, asset_id, FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?)
+          HAVING COUNT(*) = (? / ?)
           ON DUPLICATE KEY UPDATE
               open_value = VALUES(open_value),
               high_value = VALUES(high_value),
@@ -378,7 +389,9 @@ class VolumeSyncRepository extends BaseSyncRepository {
           syncStartTime,
           maxBaseTimestamp,
           interval.seconds,
-          interval.seconds
+          interval.seconds,
+          interval.seconds,
+          INTERVAL_BASE
         ])
         const affectedRows = result ? (result.affectedRows || 0) : 0
         console.log(`Synced ${affectedRows} liquidation rows for interval ${interval.name}.`)

@@ -6,10 +6,9 @@ import {
   VolumeRepository,
   LiquidationRepository,
   VolumeBaseRepository, // Repositorio para datos crudos de 5min
-  LiquidationBaseRepository // Repositorio para datos crudos de 5min
+  LiquidationBaseRepository, // Repositorio para datos crudos de 5min
+  INTERVAL_BASE
 } from '@tdf/repositories'
-
-const MASTER_INTERVAL = 300
 
 // Extrae el código del exchange de symbol (lo que está después del punto)
 function extractExchangeCode (symbol) {
@@ -92,7 +91,7 @@ export async function processLiquidations ({ db, symbol, data, interval }) {
     if (!assetId) throw new Error(`Asset not found: ${symbol}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
     if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isBaseInterval = seconds === MASTER_INTERVAL
+    const isBaseInterval = seconds === INTERVAL_BASE
 
     const exchangeIdCache = new Map()
 
@@ -143,7 +142,7 @@ export async function processVolume ({ db, symbol, data, interval }) {
     if (!assetId) throw new Error(`Asset not found: ${symbol}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
     if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isBaseInterval = seconds === MASTER_INTERVAL
+    const isBaseInterval = seconds === INTERVAL_BASE
 
     // Cache para exchangeId por código
     const exchangeIdCache = new Map()
