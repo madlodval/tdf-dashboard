@@ -24,14 +24,20 @@ class DatabaseConnection {
     throw new DatabaseQueryError('Method replaceInto not implemented or query failure')
   }
 
-  /**
-   * Executes multiple SQL statements within a transaction
-   * @param {Function} callback - Async function that receives a transaction object with execute and query methods
-   * @returns {Promise<any>} - The result of the callback function
-   * @throws {DatabaseQueryError} - If any query fails, the entire transaction is rolled back
-   */
+  async insertIntoSelect (table, insertColumns, uniqueKeys, selectSql, ...selectParams) {
+    throw new DatabaseQueryError('Method selectInsert not implemented or query failure')
+  }
+
   async transaction (callback) {
     throw new DatabaseQueryError('Method transaction not implemented or transaction failure')
+  }
+
+  async call (procedureName, ...args) {
+    throw new DatabaseQueryError('Method call not implemented or failure')
+  }
+
+  toParams (values) {
+    throw new DatabaseQueryError('Method call not implemented or failure')
   }
 }
 
@@ -44,6 +50,41 @@ class MySQLConnection extends DatabaseConnection {
 
   quoteField (field) {
     return `\`${field}\``
+  }
+
+  toParams (values) {
+    if (
+      Array.isArray(values) &&
+      values.length === 1 &&
+      Array.isArray(values[0])
+    ) {
+      values = values[0]
+    }
+
+    if (Array.isArray(values)) {
+      if (values.length === 0) {
+        throw new Error('Cannot generate placeholders for an empty array')
+      }
+      return values.map(() => '?').join(',')
+    }
+
+    if (values instanceof Map) {
+      const keys = Array.from(values.keys())
+      if (keys.length === 0) {
+        throw new Error('Cannot generate placeholders for an empty Map')
+      }
+      return keys.map(() => '?').join(',')
+    }
+
+    if (typeof values === 'object' && values !== null) {
+      const keys = Object.keys(values)
+      if (keys.length === 0) {
+        throw new Error('Cannot generate placeholders for an empty object')
+      }
+      return keys.map(() => '?').join(',')
+    }
+
+    throw new Error(`Unsupported parameter type: ${typeof values}`)
   }
 
   async connect () {
@@ -67,14 +108,42 @@ class MySQLConnection extends DatabaseConnection {
     }
   }
 
+  async call (procedureName, ...args) {
+    try {
+      const placeholders = `(${Array(args.length).fill('?').join(', ')})`
+      const sql = `CALL ${this.quoteField(procedureName)}${placeholders}`
+      return await this.execute(sql, args) // Pasar los argumentos como array
+    } catch (err) {
+      throw new DatabaseQueryError(`MySQL call failed: ${err.message}`)
+    }
+  }
+
+  #insertIntoSql (table, columns, select, uniqueKeys) {
+    const quotedCols = columns.map(col => this.quoteField(col)).join(', ')
+    const updateColumns = columns.filter(col => !uniqueKeys.includes(col))
+    const quotedUpdateColumns = updateColumns.map(col => {
+      return `${this.quoteField(col)} = VALUES(${this.quoteField(col)})`
+    }).join(', ')
+    return `INSERT INTO ${this.quoteField(table)} (${quotedCols}) ${select} ON DUPLICATE KEY UPDATE ${quotedUpdateColumns}`
+  }
+
   async replaceInto (table, data, uniqueKeys = []) {
     const columns = Object.keys(data)
     const placeholders = columns.map(() => '?').join(', ')
+    const select = `VALUES (${placeholders})`
+    const sql = this.#insertIntoSql(table, columns, select, uniqueKeys)
     const values = Object.values(data)
-    const quotedCols = columns.map(col => this.quoteField(col)).join(', ')
-    const sql = `REPLACE INTO ${this.quoteField(table)} (${quotedCols}) VALUES (${placeholders})`
     try {
-      return await this.connection.execute(sql, values)
+      return await this.execute(sql, values)
+    } catch (err) {
+      throw new DatabaseQueryError(`MySQL execute failed: ${err.message}`)
+    }
+  }
+
+  async insertIntoSelect (table, insertColumns, uniqueKeys, selectSql, ...selectParams) {
+    const sql = this.#insertIntoSql(table, uniqueKeys.concat(insertColumns), selectSql, uniqueKeys)
+    try {
+      return await this.execute(sql, selectParams)
     } catch (err) {
       throw new DatabaseQueryError(`MySQL execute failed: ${err.message}`)
     }
@@ -126,6 +195,46 @@ class PostgreSQLConnection extends DatabaseConnection {
     return `"${field}"`
   }
 
+  toParams (values) {
+    // Aplanar si se pasa un único array como argumento
+    if (
+      Array.isArray(values) &&
+      values.length === 1 &&
+      Array.isArray(values[0])
+    ) {
+      values = values[0]
+    }
+
+    // Validación: array vacío
+    if (Array.isArray(values)) {
+      if (values.length === 0) {
+        throw new Error('Cannot generate placeholders for an empty array')
+      }
+      return values.map((_, i) => `$${i + 1}`).join(',')
+    }
+
+    // Caso: Map -> extraer claves como valores
+    if (values instanceof Map) {
+      const keys = Array.from(values.keys())
+      if (keys.length === 0) {
+        throw new Error('Cannot generate placeholders for an empty Map')
+      }
+      return keys.map((_, i) => `$${i + 1}`).join(',')
+    }
+
+    // Caso: objeto plano -> extraer claves como valores
+    if (typeof values === 'object' && values !== null) {
+      const keys = Object.keys(values)
+      if (keys.length === 0) {
+        throw new Error('Cannot generate placeholders for an empty object')
+      }
+      return keys.map((_, i) => `$${i + 1}`).join(',')
+    }
+
+    // Caso: tipo no soportado
+    throw new Error(`Unsupported parameter type: ${typeof values}`)
+  }
+
   async ensureConnected () {
     if (this.client === null) {
       await this.connect()
@@ -144,7 +253,7 @@ class PostgreSQLConnection extends DatabaseConnection {
   async query (sql, params) {
     try {
       // PostgreSQL uses $1, $2, etc. instead of ?, convert the SQL
-      const pgSql = sql.replace(/\?/g, (_, i) => `$${i + 1}`)
+      const pgSql = this.#replacePlaceholders(sql)
       const result = await this.client.query(pgSql, params)
       return [result.rows, result.fields]
     } catch (err) {
@@ -155,10 +264,34 @@ class PostgreSQLConnection extends DatabaseConnection {
   async execute (sql, params) {
     try {
       // PostgreSQL uses $1, $2, etc. instead of ?, convert the SQL
-      const pgSql = sql.replace(/\?/g, (_, i) => `$${i + 1}`)
+      const pgSql = this.#replacePlaceholders(sql)
       return await this.client.query(pgSql, params)
     } catch (err) {
       throw new DatabaseQueryError(`PostgreSQL execute failed: ${err.message}`)
+    }
+  }
+
+  #insertIntoSql (table, columns, select, uniqueKeys) {
+    const quotedCols = columns.map(col => this.quoteField(col)).join(', ')
+
+    // Si no hay uniqueKeys, podríamos usar DO NOTHING, pero por coherencia con MySQL lanzamos error
+    if (!uniqueKeys || uniqueKeys.length === 0) {
+      throw new DatabaseQueryError('PostgreSQL requires at least one unique key to perform an upsert')
+    }
+
+    const conflictClause = `ON CONFLICT (${uniqueKeys.map(key => this.quoteField(key)).join(', ')})`
+
+    // Construir la cláusula SET para actualización
+    const updateColumns = columns.filter(col => !uniqueKeys.includes(col))
+
+    if (updateColumns.length === 0) {
+      return `INSERT INTO ${this.quoteField(table)} (${quotedCols}) ${select} ${conflictClause} DO NOTHING`
+    } else {
+      const updateSet = updateColumns
+        .map(col => `${this.quoteField(col)} = EXCLUDED.${this.quoteField(col)}`)
+        .join(', ')
+
+      return `INSERT INTO ${this.quoteField(table)} (${quotedCols}) ${select} ${conflictClause} DO UPDATE SET ${updateSet}`
     }
   }
 
@@ -168,29 +301,28 @@ class PostgreSQLConnection extends DatabaseConnection {
     }
 
     const columns = Object.keys(data)
-    const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ')
     const values = Object.values(data)
 
-    // Build the ON CONFLICT clause
-    const conflictKey = uniqueKeys.join(', ')
+    // PostgreSQL usa $1, $2, etc. en lugar de ?
+    const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ')
+    const select = `VALUES (${placeholders})`
 
-    // Build the SET clause for the update
-    const updateSet = columns
-      .filter(col => !uniqueKeys.includes(col)) // Exclude unique keys from the SET
-      .map((col, i) => `${this.quoteField(col)} = $${columns.length + i + 1}`)
-      .join(', ')
+    const sql = this.#insertIntoSql(table, columns, select, uniqueKeys)
 
-    // Additional values for the UPDATE
-    const updateValues = values.filter((_, i) => !uniqueKeys.includes(columns[i]))
+    try {
+      return await this.execute(sql, values)
+    } catch (err) {
+      throw new DatabaseQueryError(`PostgreSQL execute failed: ${err.message}`)
+    }
+  }
 
-    const sql = `
-      INSERT INTO ${this.quoteField(table)} (${columns.map(col => this.quoteField(col)).join(', ')})
-      VALUES (${placeholders})
-      ON CONFLICT (${conflictKey})
-      ${updateSet ? `DO UPDATE SET ${updateSet}` : 'DO NOTHING'}
-    `
-
-    return this.execute(sql, updateSet ? [...values, ...updateValues] : values)
+  async insertIntoSelect (table, insertColumns, uniqueKeys, selectSql, ...selectParams) {
+    const sql = this.#insertIntoSql(table, uniqueKeys.concat(insertColumns), selectSql, uniqueKeys)
+    try {
+      return await this.execute(sql, selectParams)
+    } catch (err) {
+      throw new DatabaseQueryError(`PostgreSQL insertIntoSelect failed: ${err.message}`)
+    }
   }
 
   async disconnect () {
@@ -219,6 +351,10 @@ class PostgreSQLConnection extends DatabaseConnection {
     } catch (err) {
       throw new DatabaseQueryError(`PostgreSQL transaction failed: ${err.message}`)
     }
+  }
+
+  #replacePlaceholders (sql) {
+    return sql.replace(/\?/g, (_, i) => `$${i + 1}`)
   }
 }
 
@@ -267,8 +403,31 @@ export class BaseRepository {
     return this.#db.execute(sql, params)
   }
 
+  async call (procedureName, ...args) {
+    return this.#db.call(procedureName, ...args)
+  }
+
+  toParams (...args) {
+    return this.#db.toParams(args)
+  }
+
   async replaceInto (data, uniqueKeys) {
     return this.#db.replaceInto(this.tableName, data, uniqueKeys)
+  }
+
+  async insertIntoSelect (
+    insertColumns,
+    uniqueKeys,
+    selectSql,
+    ...selectParams
+  ) {
+    return this.#db.insertIntoSelect(
+      this.tableName,
+      insertColumns,
+      uniqueKeys,
+      selectSql,
+      ...selectParams
+    )
   }
 
   async transaction (callback) {

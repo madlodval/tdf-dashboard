@@ -5,14 +5,14 @@
   "main": "src/index.js",
   "type": "module",
   "bin": {
-    "sync": "./bin/sync.js"
+    "tdf-sync-repo": "./bin/sync.js"
   },
   "scripts": {
     "test": "echo \"No tests specified\" && exit 0",
     "lint": "eslint . --ext .js,.mjs",
     "format": "prettier --write .",
     "build": "echo \"No build step required\"",
-    "sync": "node ./bin/sync.js"
+    "tdf-sync-repo": "node ./bin/sync.js"
   },
   "keywords": ["database", "repository", "mysql", "postgresql", "trading"],
   "author": "",

@@ -22,8 +22,8 @@ case "$RAW_INTERVAL" in
     ;;
 esac
 
-pnpm tdf-coinalyze-downloader -r vl -i "$INTERVAL" -s btc -f 2015-01-01 -t $((CURRENT_YEAR-1))-12-31
-pnpm tdf-coinalyze-importer -r vl -i "$INTERVAL" -s btc
+pnpm tdf-coinalyze-downloader -r vl -i "$INTERVAL" -a btc -f 2015-01-01 -t $((CURRENT_YEAR-1))-12-31
+pnpm tdf-coinalyze-importer -r vl -i "$INTERVAL" -a btc
 
-pnpm tdf-coinalyze-downloader -r vl -i "$INTERVAL" -s btc -f $CURRENT_YEAR-01-01 -t $CURRENT_YEAR-12-31
-pnpm tdf-coinalyze-importer -r vl -i "$INTERVAL" -s btc
+pnpm tdf-coinalyze-downloader -r vl -i "$INTERVAL" -a btc -f $CURRENT_YEAR-01-01 -t $CURRENT_YEAR-12-31
+pnpm tdf-coinalyze-importer -r vl -i "$INTERVAL" -a btc

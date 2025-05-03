@@ -48,10 +48,10 @@ const argv = yargs(hideBin(process.argv))
     choices: Object.keys(processors),
     demandOption: true
   })
-  .option('symbol', {
-    alias: 's',
+  .option('asset', {
+    alias: 'a',
     type: 'string',
-    description: 'Asset symbol',
+    description: 'Asset symbol (BTC, ETH)',
     demandOption: true
   })
   .option('interval', {
@@ -86,9 +86,9 @@ const dbConfig = {
   timezone: process.env.DB_TIMEZONE || 'Z'
 }
 
-async function handler() {
-  const { resource, symbol, interval } = argv
-  const filename = `${symbol.toLowerCase()}_${interval}_${resource}`
+async function handler () {
+  const { resource, asset, interval } = argv
+  const filename = `${asset.toLowerCase()}_${interval}_${resource}`
   const jsonFilePath = path.resolve(storageDir, `${filename}.json`)
 
   const db = DatabaseFactory.createConnection(dbConfig)
@@ -98,7 +98,7 @@ async function handler() {
     data = await dataLoader.load()
     await db.connect()
     const processor = processors[resource]
-    await processor({ db, symbol: symbol.toUpperCase(), data, interval: INTERVAL_CONVERT[interval] })
+    await processor({ db, asset: asset.toUpperCase(), data, interval: INTERVAL_CONVERT[interval] })
     console.log('Import finished.')
   } catch (error) {
     console.error('-----------------------------------------')

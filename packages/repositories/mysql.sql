@@ -48,8 +48,8 @@ INSERT INTO assets (symbol, name) VALUES
 CREATE TABLE open_interest (
     exchange_id TINYINT UNSIGNED NOT NULL,
     asset_id SMALLINT UNSIGNED NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
-    seconds INT UNSIGNED GENERATED ALWAYS AS (TIME_TO_SEC(TIME(timestamp))) STORED,
+    timestamp BIGINT UNSIGNED NOT NULL,
+    seconds INT UNSIGNED GENERATED ALWAYS AS (timestamp % 86400) STORED,
     open_value DECIMAL(20, 8) NOT NULL,
     high_value DECIMAL(20, 8) NOT NULL,
     low_value DECIMAL(20, 8) NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE open_interest (
 CREATE TABLE base_volume (
     exchange_id TINYINT UNSIGNED NOT NULL,
     asset_id SMALLINT UNSIGNED NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
+    timestamp BIGINT UNSIGNED NOT NULL,
     open_value DECIMAL(20, 8) NOT NULL,
     high_value DECIMAL(20, 8) NOT NULL,
     low_value DECIMAL(20, 8) NOT NULL,
@@ -80,7 +80,7 @@ CREATE TABLE base_volume (
 CREATE TABLE base_liquidations (
     exchange_id TINYINT UNSIGNED NOT NULL,
     asset_id SMALLINT UNSIGNED NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
+    timestamp BIGINT UNSIGNED NOT NULL,
     longs DECIMAL(20, 8) NOT NULL,
     shorts DECIMAL(20, 8) NOT NULL,
     PRIMARY KEY (exchange_id, asset_id, timestamp),
@@ -93,7 +93,7 @@ CREATE TABLE volume (
     exchange_id TINYINT UNSIGNED NOT NULL,
     asset_id SMALLINT UNSIGNED NOT NULL,
     interval_id TINYINT UNSIGNED NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
+    timestamp BIGINT UNSIGNED NOT NULL,
     open_value DECIMAL(20, 8) NOT NULL,
     high_value DECIMAL(20, 8) NOT NULL,
     low_value DECIMAL(20, 8) NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE liquidations (
     exchange_id TINYINT UNSIGNED NOT NULL,
     asset_id SMALLINT UNSIGNED NOT NULL,
     interval_id TINYINT UNSIGNED NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
+    timestamp BIGINT UNSIGNED NOT NULL,
     longs DECIMAL(20, 8) NOT NULL,
     shorts DECIMAL(20, 8) NOT NULL,
     PRIMARY KEY (exchange_id, asset_id, interval_id, timestamp),
@@ -122,7 +122,7 @@ CREATE TABLE liquidations (
 
 CREATE TABLE IF NOT EXISTS sync_liquidations (
   interval_id TINYINT UNSIGNED PRIMARY KEY,
-  last_sync_timestamp TIMESTAMP NOT NULL,
+  timestamp BIGINT UNSIGNED NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_sync_liq_interval FOREIGN KEY (interval_id) REFERENCES intervals(id)
@@ -130,21 +130,108 @@ CREATE TABLE IF NOT EXISTS sync_liquidations (
 
 CREATE TABLE IF NOT EXISTS sync_volume (
   interval_id TINYINT UNSIGNED PRIMARY KEY,
-  last_sync_timestamp TIMESTAMP NOT NULL,
+  timestamp BIGINT UNSIGNED NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_sync_vol_interval FOREIGN KEY (interval_id) REFERENCES intervals(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Insert initial sync records for each interval
-INSERT IGNORE INTO sync_liquidations (interval_id, last_sync_timestamp)
+INSERT IGNORE INTO sync_liquidations (interval_id, timestamp)
 SELECT id, '1970-01-01 00:00:00'
 FROM intervals;
 
-INSERT IGNORE INTO sync_volume (interval_id, last_sync_timestamp)
+INSERT IGNORE INTO sync_volume (interval_id, timestamp)
 SELECT id, '1970-01-01 00:00:00'
 FROM intervals;
 
+
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sync_volume_intervals //
+
+CREATE PROCEDURE sync_volume_intervals(
+    IN p_interval_id INT,
+    IN p_interval_duration_seconds BIGINT,
+    IN p_start_timestamp BIGINT,
+    IN p_end_timestamp BIGINT,
+    IN p_original_frequency_seconds BIGINT
+)
+BEGIN
+    INSERT INTO volume (
+        exchange_id,
+        asset_id,
+        interval_id,
+        timestamp,
+        open_value,
+        high_value,
+        low_value,
+        close_value,
+        volume_value
+    )
+    SELECT
+        exchange_id,
+        asset_id,
+        p_interval_id AS interval_id,
+        FLOOR(timestamp / p_interval_duration_seconds) * p_interval_duration_seconds AS interval_timestamp,
+        SUBSTRING_INDEX(GROUP_CONCAT(open_value ORDER BY timestamp ASC), ',', 1) AS open_value,
+        MAX(high_value) AS high_value,
+        MIN(low_value) AS low_value,
+        SUBSTRING_INDEX(GROUP_CONCAT(close_value ORDER BY timestamp DESC), ',', 1) AS close_value,
+        SUM(volume_value) AS volume_value
+    FROM base_volume
+    WHERE timestamp >= p_start_timestamp AND timestamp <= p_end_timestamp
+    GROUP BY exchange_id, asset_id, interval_timestamp
+    HAVING COUNT(*) = (p_interval_duration_seconds / p_original_frequency_seconds)
+    ON DUPLICATE KEY UPDATE
+        open_value = VALUES(open_value),
+        high_value = VALUES(high_value),
+        low_value = VALUES(low_value),
+        close_value = VALUES(close_value),
+        volume_value = VALUES(volume_value);
+END //
+
+DELIMITER ;
+
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS sync_liquidations_intervals //
+
+CREATE PROCEDURE sync_liquidations_intervals(
+    IN p_interval_id INT,
+    IN p_interval_duration_seconds BIGINT,
+    IN p_start_timestamp BIGINT,
+    IN p_end_timestamp BIGINT,
+    IN p_original_frequency_seconds BIGINT
+)
+BEGIN
+    INSERT INTO liquidations (
+        exchange_id,
+        asset_id,
+        interval_id,
+        timestamp,
+        longs,
+        shorts
+    )
+    SELECT
+        exchange_id,
+        asset_id,
+        p_interval_id AS interval_id,
+        FLOOR(timestamp / p_interval_duration_seconds) * p_interval_duration_seconds AS timestamp_interval,
+        SUM(longs) AS longs,
+        SUM(shorts) AS shorts
+    FROM base_liquidations
+    WHERE timestamp >= p_start_timestamp AND timestamp <= p_end_timestamp
+    GROUP BY exchange_id, asset_id, timestamp_interval
+    HAVING COUNT(*) = (p_interval_duration_seconds / p_original_frequency_seconds)
+    ON DUPLICATE KEY UPDATE
+        longs = VALUES(longs),
+        shorts = VALUES(shorts);
+END //
+
+DELIMITER ;
 
 TRUNCATE TABLE open_interest;
 TRUNCATE TABLE base_volume;

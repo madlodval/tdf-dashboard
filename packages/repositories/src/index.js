@@ -3,20 +3,10 @@ import { BaseRepository, DatabaseFactory } from './db.js'
 export { DatabaseFactory }
 
 // Interval base in seconds for 5 minutes
-export const INTERVAL_BASE = 300
+const INTERVAL_BASE = 300
 
-// --- UTILIDAD UTC SEGURA ---
-// Convierte cualquier fecha a 'YYYY-MM-DD HH:mm:ss' UTC, compatible con MySQL y PostgreSQL
-function toUtcDatetimeString (date) {
-  const d = (typeof date === 'number')
-    ? new Date(date * (date < 1e12 ? 1000 : 1)) // segundos o ms
-    : new Date(date)
-  return d.getUTCFullYear() + '-' +
-    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-    String(d.getUTCDate()).padStart(2, '0') + ' ' +
-    String(d.getUTCHours()).padStart(2, '0') + ':' +
-    String(d.getUTCMinutes()).padStart(2, '0') + ':' +
-    String(d.getUTCSeconds()).padStart(2, '0')
+export function isIntervalBase (seconds) {
+  return seconds === INTERVAL_BASE
 }
 
 export class AssetRepository extends BaseRepository {
@@ -44,7 +34,7 @@ export class ExchangeRepository extends BaseRepository {
     ) {
       exchangeNames = exchangeNames[0]
     }
-    const placeholders = exchangeNames.map(() => '?').join(',')
+    const placeholders = this.toParams(exchangeNames)
     const sql = `SELECT id, name FROM ${this.quotedTableName} WHERE name IN (${placeholders})`
     const [rows] = await this.query(sql, exchangeNames)
     const foundMap = new Map(rows.map(row => [row.name, parseInt(row.id)]))
@@ -61,7 +51,7 @@ export class ExchangeRepository extends BaseRepository {
     return rows[0].id
   }
 
-  async all () {
+  async findAll () {
     const [rows] = await this.query(`SELECT id, name FROM ${this.quotedTableName}`, [])
     const exchanges = new Map()
     for (const row of rows) {
@@ -79,7 +69,7 @@ export class ExchangeRepository extends BaseRepository {
       exchangeIds = exchangeIds[0]
     }
     if (!exchangeIds.length) return results
-    const placeholders = exchangeIds.map(() => '?').join(',')
+    const placeholders = this.toParams(exchangeIds)
     const sql = `SELECT id, name FROM ${this.quotedTableName} WHERE id IN (${placeholders})`
     const [rows] = await this.query(sql, exchangeIds)
     const foundMap = new Map(rows.map(row => [parseInt(row.id), row.name]))
@@ -100,7 +90,7 @@ export class OpenInterestRepository extends BaseRepository {
     return this.replaceInto({
       exchange_id: data.exchangeId,
       asset_id: data.assetId,
-      timestamp: toUtcDatetimeString(data.timestamp),
+      timestamp: data.timestamp,
       open_value: data.open,
       high_value: data.high,
       low_value: data.low,
@@ -110,15 +100,15 @@ export class OpenInterestRepository extends BaseRepository {
 
   async findAllByAssetId (assetId, seconds) {
     const sql = `
-      SELECT UNIX_TIMESTAMP(timestamp) AS timestamp_unix, exchange_id, open_value, high_value, low_value, close_value
+      SELECT timestamp, exchange_id, open_value, high_value, low_value, close_value
       FROM ${this.quotedTableName}
       WHERE asset_id = ? AND seconds % ? = 0
       ORDER BY timestamp ASC
     `
     const params = [assetId, seconds]
     const [rows] = await this.query(sql, params)
-    return rows.map(({ timestamp_unix: timestampUnix, exchange_id: exchangeId, open_value: openValue, high_value: highValue, low_value: lowValue, close_value: closeValue }) => ({
-      timestamp: +timestampUnix,
+    return rows.map(({ timestamp, exchange_id: exchangeId, open_value: openValue, high_value: highValue, low_value: lowValue, close_value: closeValue }) => ({
+      timestamp: +timestamp,
       exchange_id: +exchangeId,
       open: +openValue,
       high: +highValue,
@@ -130,7 +120,7 @@ export class OpenInterestRepository extends BaseRepository {
   async findAllAccumByAssetId (assetId, seconds) {
     const sql = `
     SELECT
-      UNIX_TIMESTAMP(timestamp) AS timestamp_unix,
+      timestamp,
       SUM(open_value) AS open,
       SUM(high_value) AS high,
       SUM(low_value) AS low,
@@ -143,7 +133,7 @@ export class OpenInterestRepository extends BaseRepository {
     const params = [assetId, seconds]
     const [rows] = await this.query(sql, params)
     return rows.map(row => ({
-      time: +row.timestamp_unix,
+      time: +row.timestamp,
       open: +row.open,
       high: +row.high,
       low: +row.low,
@@ -224,22 +214,21 @@ class BaseSyncRepository extends BaseRepository {
     const [maxBaseTimestampRow] = await this.query(
       `SELECT MAX(timestamp) as max_ts FROM ${this.quotedBaseTableName}`
     )
-    return maxBaseTimestampRow[0].max_ts ? new Date(maxBaseTimestampRow[0].max_ts).getTime() / 1000 : 0
+    return maxBaseTimestampRow[0].max_ts ? maxBaseTimestampRow[0].max_ts : 0
   }
 
   async getLastSyncTimestamp (intervalId) {
     const [rows] = await this.query(
-      `SELECT UNIX_TIMESTAMP(last_sync_timestamp) as last_sync_timestamp FROM ${this.quotedSyncTableName} WHERE interval_id = ?`,
+      `SELECT timestamp FROM ${this.quotedSyncTableName} WHERE interval_id = ?`,
       [intervalId]
     )
-    return rows.length > 0 && rows[0].last_sync_timestamp !== null ? +rows[0].last_sync_timestamp : 0
+    return rows.length > 0 && rows[0].timestamp !== null ? +rows[0].timestamp : 0
   }
 
   async updateLastSyncTimestamp (intervalId, timestamp) {
-    const timestampString = toUtcDatetimeString(timestamp)
     await this.execute(
-      `UPDATE ${this.quotedSyncTableName} SET last_sync_timestamp = ? WHERE interval_id = ?`,
-      [timestampString, intervalId]
+      `UPDATE ${this.quotedSyncTableName} SET timestamp = ? WHERE interval_id = ?`,
+      [timestamp, intervalId]
     )
   }
 }
@@ -251,14 +240,14 @@ class BaseDataRepository extends BaseRepository {
       exchange_id: data.exchangeId,
       asset_id: data.assetId,
       interval_id: data.intervalId,
-      timestamp: toUtcDatetimeString(data.timestamp),
+      timestamp: data.timestamp,
       ...this.getDataFields(data)
     }, ['exchange_id', 'asset_id', 'interval_id', 'timestamp'])
   }
 
   async findAllByAssetId (assetId, intervalId) {
     const sql = `
-      SELECT UNIX_TIMESTAMP(timestamp) AS timestampUnix,
+      SELECT timestamp,
              exchange_id AS exchangeId,
              interval_id AS intervalId,
              ${this.getSelectFields()}
@@ -289,7 +278,7 @@ class LiquidationSyncRepository extends BaseSyncRepository {
       let totalSynced = 0
       const maxBaseTimestamp = await this.getMaxBaseTimestamp()
       for (const interval of intervals) {
-        if (interval.seconds === INTERVAL_BASE) {
+        if (isIntervalBase(interval.seconds)) {
           continue // default is sync on import
         }
         const lastSync = await this.getLastSyncTimestamp(interval.id)
@@ -297,18 +286,19 @@ class LiquidationSyncRepository extends BaseSyncRepository {
         if (maxBaseTimestamp < syncStartTime) {
           continue
         }
+        /*
         const sql = `
           INSERT INTO ${this.quotedTableName} (exchange_id, asset_id, interval_id, timestamp, longs, shorts)
           SELECT
             exchange_id,
             asset_id,
             ? as interval_id,
-            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?) as timestamp,
+            FLOOR(timestamp / ?) * ? as timestamp,
             SUM(longs) as longs,
             SUM(shorts) as shorts
           FROM ${this.quotedBaseTableName}
-          WHERE UNIX_TIMESTAMP(timestamp) >= ? AND UNIX_TIMESTAMP(timestamp) <= ?
-          GROUP BY exchange_id, asset_id, FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?)
+          WHERE timestamp >= ? AND timestamp <= ?
+          GROUP BY exchange_id, asset_id, FLOOR(timestamp / ?) * ?
           HAVING COUNT(*) = (? / ?)
           ON DUPLICATE KEY UPDATE
             longs = VALUES(longs),
@@ -325,6 +315,41 @@ class LiquidationSyncRepository extends BaseSyncRepository {
           interval.seconds,
           INTERVAL_BASE
         ])
+        */
+        /*
+        const result = await this.insertIntoSelect(
+          ['longs', 'shorts'],
+          ['exchange_id', 'asset_id', 'interval_id', 'timestamp'],
+          `SELECT
+            exchange_id,
+            asset_id,
+            ? as interval_id,
+            FLOOR(timestamp / ?) * ? as timestamp,
+            SUM(longs) as longs,
+            SUM(shorts) as shorts
+          FROM ${this.quotedBaseTableName}
+          WHERE timestamp >= ? AND timestamp <= ?
+          GROUP BY exchange_id, asset_id, FLOOR(timestamp / ?) * ?
+          HAVING COUNT(*) = (? / ?)`,
+          interval.id,
+          interval.seconds,
+          interval.seconds,
+          syncStartTime,
+          maxBaseTimestamp,
+          interval.seconds,
+          interval.seconds,
+          interval.seconds,
+          INTERVAL_BASE
+        )
+        */
+        const result = await this.call(
+          'sync_liquidations_intervals',
+          interval.id,
+          interval.seconds,
+          syncStartTime,
+          maxBaseTimestamp,
+          INTERVAL_BASE
+        )
 
         const affectedRows = result ? (result.affectedRows || 0) : 0
         console.log(`Synced ${affectedRows} liquidation rows for interval ${interval.name}.`)
@@ -351,7 +376,7 @@ class VolumeSyncRepository extends BaseSyncRepository {
       let totalSynced = 0
       const maxBaseTimestamp = await this.getMaxBaseTimestamp()
       for (const interval of intervals) {
-        if (interval.seconds === INTERVAL_BASE) {
+        if (isIntervalBase(interval.seconds)) {
           continue // default is sync on import
         }
         const lastSync = await this.getLastSyncTimestamp(interval.id)
@@ -359,21 +384,22 @@ class VolumeSyncRepository extends BaseSyncRepository {
         if (maxBaseTimestamp < syncStartTime) {
           continue
         }
+        /*
         const sql = `
           INSERT INTO ${this.quotedTableName} (exchange_id, asset_id, interval_id, timestamp, open_value, high_value, low_value, close_value, volume_value)
           SELECT
             exchange_id,
             asset_id,
             ? as interval_id,
-            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?) as timestamp,
+            FLOOR(timestamp / ?) * ? as timestamp,
             SUBSTRING_INDEX(GROUP_CONCAT(open_value ORDER BY timestamp ASC), ',', 1) as open_value,
             MAX(high_value) as high_value,
             MIN(low_value) as low_value,
             SUBSTRING_INDEX(GROUP_CONCAT(close_value ORDER BY timestamp DESC), ',', 1) as close_value,
             SUM(volume_value) as volume_value
           FROM ${this.quotedBaseTableName}
-          WHERE UNIX_TIMESTAMP(timestamp) >= ? AND UNIX_TIMESTAMP(timestamp) <= ?
-          GROUP BY exchange_id, asset_id, FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / ?) * ?)
+          WHERE timestamp >= ? AND timestamp <= ?
+          GROUP BY exchange_id, asset_id, FLOOR(timestamp / ?) * ?
           HAVING COUNT(*) = (? / ?)
           ON DUPLICATE KEY UPDATE
               open_value = VALUES(open_value),
@@ -393,6 +419,46 @@ class VolumeSyncRepository extends BaseSyncRepository {
           interval.seconds,
           INTERVAL_BASE
         ])
+        */
+        /*
+        const result = await this.insertIntoSelect(
+          ['open_value', 'high_value', 'low_value', 'close_value', 'volume_value'],
+          ['exchange_id', 'asset_id', 'interval_id', 'timestamp'],
+          `SELECT
+            exchange_id,
+            asset_id,
+            ? as interval_id,
+            FLOOR(timestamp / ?) * ? as timestamp,
+            SUBSTRING_INDEX(GROUP_CONCAT(open_value ORDER BY timestamp ASC), ',', 1) as open_value,
+            MAX(high_value) as high_value,
+            MIN(low_value) as low_value,
+            SUBSTRING_INDEX(GROUP_CONCAT(close_value ORDER BY timestamp DESC), ',', 1) as close_value,
+            SUM(volume_value) as volume_value
+          FROM ${this.quotedBaseTableName}
+          WHERE timestamp >= ? AND timestamp <= ?
+          GROUP BY exchange_id, asset_id, FLOOR(timestamp / ?) * ?
+          HAVING COUNT(*) = (? / ?)`,
+          interval.id,
+          interval.seconds,
+          interval.seconds,
+          syncStartTime,
+          maxBaseTimestamp,
+          interval.seconds,
+          interval.seconds,
+          interval.seconds,
+          INTERVAL_BASE
+        )
+        */
+
+        const result = await this.call(
+          'sync_volume_intervals',
+          interval.id,
+          interval.seconds,
+          syncStartTime,
+          maxBaseTimestamp,
+          INTERVAL_BASE
+        )
+
         const affectedRows = result ? (result.affectedRows || 0) : 0
         console.log(`Synced ${affectedRows} liquidation rows for interval ${interval.name}.`)
         totalSynced += affectedRows
@@ -422,9 +488,9 @@ export class LiquidationRepository extends BaseDataRepository {
     return 'longs, shorts'
   }
 
-  mapRow ({ timestampUnix, exchangeId, intervalId, longs, shorts }) {
+  mapRow ({ timestamp, exchangeId, intervalId, longs, shorts }) {
     return {
-      timestamp: +timestampUnix,
+      timestamp: +timestamp,
       exchangeId: +exchangeId,
       intervalId: +intervalId,
       longs: +longs,
@@ -455,9 +521,9 @@ export class VolumeRepository extends BaseDataRepository {
     return 'open_value AS openValue, high_value AS highValue, low_value AS lowValue, close_value AS closeValue, volume_value AS volumeValue'
   }
 
-  mapRow ({ timestampUnix, exchangeId, intervalId, openValue, highValue, lowValue, closeValue, volumeValue }) {
+  mapRow ({ timestamp, exchangeId, intervalId, openValue, highValue, lowValue, closeValue, volumeValue }) {
     return {
-      timestamp: +timestampUnix,
+      timestamp: +timestamp,
       exchangeId: +exchangeId,
       intervalId: +intervalId,
       open: +openValue,
@@ -480,7 +546,7 @@ export class VolumeBaseRepository extends BaseRepository {
     return this.replaceInto({
       exchange_id: data.exchangeId,
       asset_id: data.assetId,
-      timestamp: toUtcDatetimeString(data.timestamp),
+      timestamp: data.timestamp,
       open_value: data.open,
       high_value: data.high,
       low_value: data.low,
@@ -492,15 +558,15 @@ export class VolumeBaseRepository extends BaseRepository {
   async findAllByAssetId (assetId) {
     // Consulta todos los datos crudos de 5 minutos para un activo.
     const sql = `
-      SELECT UNIX_TIMESTAMP(timestamp) AS timestamp_unix, exchange_id, open_value, high_value, low_value, close_value, volume_value
+      SELECT timestamp, exchange_id, open_value, high_value, low_value, close_value, volume_value
       FROM ${this.quotedTableName}
       WHERE asset_id = ?
       ORDER BY timestamp ASC
     `
     const params = [assetId]
     const [rows] = await this.query(sql, params)
-    return rows.map(({ timestamp_unix: timestampUnix, exchange_id: exchangeId, open_value: openValue, high_value: highValue, low_value: lowValue, close_value: closeValue, volume_value: volumeValue }) => ({
-      timestamp: +timestampUnix,
+    return rows.map(({ timestamp, exchange_id: exchangeId, open_value: openValue, high_value: highValue, low_value: lowValue, close_value: closeValue, volume_value: volumeValue }) => ({
+      timestamp: +timestamp,
       exchange_id: +exchangeId,
       open: +openValue,
       high: +highValue,
@@ -513,15 +579,15 @@ export class VolumeBaseRepository extends BaseRepository {
   // Método para obtener datos de 5min en un rango de tiempo específico
   async findByAssetIdAndTimeRange (assetId, startTime, endTime) {
     const sql = `
-          SELECT UNIX_TIMESTAMP(timestamp) AS timestamp_unix, exchange_id, open_value, high_value, low_value, close_value, volume_value
+          SELECT timestamp, exchange_id, open_value, high_value, low_value, close_value, volume_value
           FROM ${this.quotedTableName}
-          WHERE asset_id = ? AND timestamp >= FROM_UNIXTIME(?) AND timestamp < FROM_UNIXTIME(?)
+          WHERE asset_id = ? AND timestamp >= ? AND timestamp < ?
           ORDER BY timestamp ASC
       `
     const params = [assetId, startTime, endTime]
     const [rows] = await this.query(sql, params)
-    return rows.map(({ timestamp_unix: timestampUnix, exchange_id: exchangeId, open_value: openValue, high_value: highValue, low_value: lowValue, close_value: closeValue, volume_value: volumeValue }) => ({
-      timestamp: +timestampUnix,
+    return rows.map(({ timestamp, exchange_id: exchangeId, open_value: openValue, high_value: highValue, low_value: lowValue, close_value: closeValue, volume_value: volumeValue }) => ({
+      timestamp: +timestamp,
       exchange_id: +exchangeId,
       open: +openValue,
       high: +highValue,
@@ -543,7 +609,7 @@ export class LiquidationBaseRepository extends BaseRepository {
     return this.replaceInto({
       exchange_id: data.exchangeId,
       asset_id: data.assetId,
-      timestamp: toUtcDatetimeString(data.timestamp),
+      timestamp: data.timestamp,
       longs: data.longs,
       shorts: data.shorts
     }, ['exchange_id', 'asset_id', 'timestamp'])
@@ -552,15 +618,15 @@ export class LiquidationBaseRepository extends BaseRepository {
   async findAllByAssetId (assetId) {
     // Consulta todos los datos crudos de 5 minutos para un activo.
     const sql = `
-      SELECT UNIX_TIMESTAMP(timestamp) AS timestamp_unix, exchange_id, longs, shorts
+      SELECT timestamp, exchange_id, longs, shorts
       FROM ${this.quotedTableName}
       WHERE asset_id = ?
       ORDER BY timestamp ASC
     `
     const params = [assetId]
     const [rows] = await this.query(sql, params)
-    return rows.map(({ timestamp_unix: timestampUnix, exchange_id: exchangeId, longs, shorts }) => ({
-      timestamp: +timestampUnix,
+    return rows.map(({ timestamp, exchange_id: exchangeId, longs, shorts }) => ({
+      timestamp: +timestamp,
       exchange_id: +exchangeId,
       longs: +longs,
       shorts: +shorts
@@ -570,15 +636,15 @@ export class LiquidationBaseRepository extends BaseRepository {
   // Método para obtener datos de 5min en un rango de tiempo específico
   async findByAssetIdAndTimeRange (assetId, startTime, endTime) {
     const sql = `
-            SELECT UNIX_TIMESTAMP(timestamp) AS timestamp_unix, exchange_id, longs, shorts
+            SELECT timestamp, exchange_id, longs, shorts
             FROM ${this.quotedTableName}
-            WHERE asset_id = ? AND timestamp >= FROM_UNIXTIME(?) AND timestamp < FROM_UNIXTIME(?)
+            WHERE asset_id = ? AND timestamp >= ? AND timestamp < ?
             ORDER BY timestamp ASC
         `
     const params = [assetId, startTime, endTime]
     const [rows] = await this.query(sql, params)
-    return rows.map(({ timestamp_unix: timestampUnix, exchange_id: exchangeId, longs, shorts }) => ({
-      timestamp: +timestampUnix,
+    return rows.map(({ timestamp, exchange_id: exchangeId, longs, shorts }) => ({
+      timestamp: +timestamp,
       exchange_id: +exchangeId,
       longs: +longs,
       shorts: +shorts

@@ -52,10 +52,10 @@ const argv = yargs(hideBin(process.argv))
     ],
     demandOption: true
   })
-  .option('symbol', {
-    alias: 's',
+  .option('asset', {
+    alias: 'a',
     type: 'string',
-    description: 'Símbolo del activo',
+    description: 'Símbolo del activo (BTC, ETH)',
     demandOption: true
   })
   .option('from', {
@@ -74,14 +74,14 @@ const argv = yargs(hideBin(process.argv))
   .alias('help', 'h')
   .argv
 
-let { resource, interval, symbol, from, to } = argv
+let { resource, interval, asset, from, to } = argv
 
 const range = getDefaultRange(interval)
 from = parseDateOrTimestamp(from, range.from, false)
 to = parseDateOrTimestamp(to, range.to, true)
 
 const params = {
-  symbol: symbol.toUpperCase(),
+  asset: asset.toUpperCase(),
   interval: interval.toLowerCase(),
   from,
   to
@@ -96,7 +96,7 @@ const storageDir = path.resolve(process.cwd(), 'storage')
 if (!fs.existsSync(storageDir)) {
   fs.mkdirSync(storageDir, { recursive: true })
 }
-const filename = path.join(storageDir, `${symbol.toLowerCase()}_${interval}_${resource}.json`)
+const filename = path.join(storageDir, `${asset.toLowerCase()}_${interval}_${resource}.json`)
 
 async function handler () {
   const cache = new JsonCache(storageDir, 86400)

@@ -5,51 +5,68 @@ import {
   IntervalRepository,
   VolumeRepository,
   LiquidationRepository,
-  VolumeBaseRepository, // Repositorio para datos crudos de 5min
-  LiquidationBaseRepository, // Repositorio para datos crudos de 5min
-  INTERVAL_BASE
+  VolumeBaseRepository,
+  LiquidationBaseRepository,
+  isIntervalBase
 } from '@tdf/repositories'
 
-// Extrae el código del exchange de symbol (lo que está después del punto)
 function extractExchangeCode (symbol) {
   const parts = symbol.split('.')
   return parts.length > 1 ? parts[1] : null
 }
 
-// Acumula el interés abierto (OHLC) por exchange y timestamp
-export async function processOpenInterest ({ db, symbol, data }) {
+function createExchangeIdCache (exchangeRepo) {
+  const cache = new Map()
+
+  return async function getExchangeId (symbol) {
+    const exchangeCode = extractExchangeCode(symbol)
+    if (!exchangeCode) {
+      console.warn(`No exchange code found in symbol: ${symbol}`)
+      return null
+    }
+
+    let exchangeId = cache.get(exchangeCode)
+    if (exchangeId === undefined) {
+      exchangeId = await exchangeRepo.findIdByCode(exchangeCode)
+      cache.set(exchangeCode, exchangeId)
+    }
+
+    if (!exchangeId) {
+      console.warn(`Exchange not found for code: ${exchangeCode} (symbol: ${symbol})`)
+      return null
+    }
+
+    return exchangeId
+  }
+}
+
+export async function processOpenInterest ({ db, asset, data }) {
   return db.transaction(async () => {
     const assetRepo = new AssetRepository(db)
     const exchangeRepo = new ExchangeRepository(db)
     const oiRepo = new OpenInterestRepository(db)
-    const assetId = await assetRepo.findIdBySymbol(symbol)
-    if (!assetId) throw new Error(`Asset not found: ${symbol}`)
-
-    // Cache para exchangeId por código
-    const exchangeIdCache = new Map()
-    // Estructura: { exchangeId: { timestamp: { open, high, low, close } } }
+    const assetId = await assetRepo.findIdBySymbol(asset)
+    if (!assetId) throw new Error(`Asset not found: ${asset}`)
+    const getExchangeId = createExchangeIdCache(exchangeRepo)
     const acc = new Map()
-
     for (const market of data) {
-      const exchangeCode = extractExchangeCode(market.symbol)
-      if (!exchangeCode) {
-        console.warn(`No exchange code found in symbol: ${market.symbol}`)
-        continue
-      }
-      let exchangeId = exchangeIdCache.get(exchangeCode)
-      if (exchangeId === undefined) {
-        exchangeId = await exchangeRepo.findIdByCode(exchangeCode)
-        exchangeIdCache.set(exchangeCode, exchangeId)
-      }
+      const exchangeId = await getExchangeId(market.symbol)
       if (!exchangeId) {
-        console.warn(`Exchange not found for code: ${exchangeCode} (symbol: ${market.symbol})`)
         continue
+      }
+      if (!acc.has(exchangeId)) {
+        acc.set(exchangeId, new Map())
       }
       for (const entry of market.history) {
         const ts = entry.t
-        if (!acc.has(exchangeId)) acc.set(exchangeId, new Map())
         const exMap = acc.get(exchangeId)
-        const ohlc = exMap.get(ts) || { open: 0, high: 0, low: 0, close: 0, count: 0 }
+        const ohlc = exMap.get(ts) || {
+          open: 0,
+          high: 0,
+          low: 0,
+          close: 0,
+          count: 0
+        }
         ohlc.open += entry.o
         ohlc.close += entry.c
         ohlc.high += entry.h
@@ -60,7 +77,6 @@ export async function processOpenInterest ({ db, symbol, data }) {
     }
 
     let totalSaved = 0
-    // Guardar un registro por exchange, timestamp (acumulado)
     for (const [exchangeId, tsMap] of acc.entries()) {
       for (const [ts, ohlc] of tsMap.entries()) {
         await oiRepo.save({
@@ -75,42 +91,29 @@ export async function processOpenInterest ({ db, symbol, data }) {
         totalSaved++
       }
     }
-    console.log(`Open Interest OHLC importado para ${symbol}. Registros guardados: ${totalSaved}`)
+    console.log(`Open Interest OHLC importado para ${asset}. Registros guardados: ${totalSaved}`)
   })
 }
 
-// Procesa e importa datos de Liquidaciones
-export async function processLiquidations ({ db, symbol, data, interval }) {
+export async function processLiquidations ({ db, asset, data, interval }) {
   return db.transaction(async () => {
     const assetRepo = new AssetRepository(db)
     const exchangeRepo = new ExchangeRepository(db)
     const liquidationRepo = new LiquidationRepository(db)
     const liquidationRepoBase = new LiquidationBaseRepository(db)
     const intervalRepo = new IntervalRepository(db)
-    const assetId = await assetRepo.findIdBySymbol(symbol)
-    if (!assetId) throw new Error(`Asset not found: ${symbol}`)
+    const assetId = await assetRepo.findIdBySymbol(asset)
+    if (!assetId) throw new Error(`Asset not found: ${asset}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
     if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isBaseInterval = seconds === INTERVAL_BASE
+    const isBaseInterval = isIntervalBase(seconds)
 
-    const exchangeIdCache = new Map()
+    const getExchangeId = createExchangeIdCache(exchangeRepo)
 
-    // data: [{ symbol: "...", history: [ { t, l, s }, ... ] }]
     for (const block of data) {
-      const exchangeCode = extractExchangeCode(block.symbol)
-      if (!exchangeCode) {
-        console.warn(`No exchange code found in symbol: ${block.symbol}`)
-        continue
-      }
-      let exchangeId = exchangeIdCache.get(exchangeCode)
-      if (exchangeId === undefined) {
-        exchangeId = await exchangeRepo.findIdByCode(exchangeCode)
-        exchangeIdCache.set(exchangeCode, exchangeId)
-      }
-      if (!exchangeId) {
-        console.warn(`Exchange not found for code: ${exchangeCode} (symbol: ${block.symbol})`)
-        continue
-      }
+      const exchangeId = await getExchangeId(block.symbol)
+      if (!exchangeId) continue
+
       for (const entry of block.history) {
         const data = {
           exchangeId,
@@ -126,54 +129,49 @@ export async function processLiquidations ({ db, symbol, data, interval }) {
         }
       }
     }
-    console.log(`Liquidations imported for ${symbol}`)
+    console.log(`Liquidations imported for ${asset}`)
   })
 }
 
-// Procesa e importa datos de Volumen/OHLCV
-export async function processVolume ({ db, symbol, data, interval }) {
+export async function processVolume ({ db, asset, data, interval }) {
   return db.transaction(async () => {
     const assetRepo = new AssetRepository(db)
     const exchangeRepo = new ExchangeRepository(db)
     const volumeRepo = new VolumeRepository(db)
     const volumeRepoBase = new VolumeBaseRepository(db)
     const intervalRepo = new IntervalRepository(db)
-    const assetId = await assetRepo.findIdBySymbol(symbol)
-    if (!assetId) throw new Error(`Asset not found: ${symbol}`)
+    const assetId = await assetRepo.findIdBySymbol(asset)
+    if (!assetId) throw new Error(`Asset not found: ${asset}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
     if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isBaseInterval = seconds === INTERVAL_BASE
+    const isBaseInterval = isIntervalBase(seconds)
 
-    // Cache para exchangeId por código
-    const exchangeIdCache = new Map()
-    // Estructura: { exchangeId: { timestamp: { open, high, low, close } } }
+    const getExchangeId = createExchangeIdCache(exchangeRepo)
     const acc = new Map()
 
     for (const market of data) {
-      const exchangeCode = extractExchangeCode(market.symbol)
-      if (!exchangeCode) {
-        console.warn(`No exchange code found in symbol: ${market.symbol}`)
-        continue
-      }
-      let exchangeId = exchangeIdCache.get(exchangeCode)
-      if (exchangeId === undefined) {
-        exchangeId = await exchangeRepo.findIdByCode(exchangeCode)
-        exchangeIdCache.set(exchangeCode, exchangeId)
-      }
+      const exchangeId = await getExchangeId(market.symbol)
       if (!exchangeId) {
-        console.warn(`Exchange not found for code: ${exchangeCode} (symbol: ${market.symbol})`)
         continue
+      }
+      if (!acc.has(exchangeId)) {
+        acc.set(exchangeId, new Map())
       }
       for (const entry of market.history) {
         const ts = entry.t
-        if (!acc.has(exchangeId)) acc.set(exchangeId, new Map())
         const exMap = acc.get(exchangeId)
-        // Guardar suma y contador para promediar OHLC
-        const ohlc = exMap.get(ts) || { sumOpen: 0, sumHigh: 0, sumLow: 0, sumClose: 0, volume: 0, count: 0 }
-        ohlc.sumOpen += entry.o
-        ohlc.sumHigh += entry.h
-        ohlc.sumLow += entry.l
-        ohlc.sumClose += entry.c
+        const ohlc = exMap.get(ts) || {
+          open: 0,
+          high: -Infinity,
+          low: Infinity,
+          close: 0,
+          volume: 0,
+          count: 0
+        }
+        ohlc.open += entry.o
+        ohlc.high = Math.max(entry.h, ohlc.high)
+        ohlc.low = Math.min(entry.l, ohlc.low)
+        ohlc.close += entry.c
         ohlc.volume += entry.v
         ohlc.count += 1
         exMap.set(ts, ohlc)
@@ -181,7 +179,6 @@ export async function processVolume ({ db, symbol, data, interval }) {
     }
 
     let totalSaved = 0
-    // Guardar un registro por exchange, timestamp (acumulado y promediado)
     for (const [exchangeId, tsMap] of acc.entries()) {
       for (const [ts, ohlc] of tsMap.entries()) {
         const count = ohlc.count || 1
@@ -190,11 +187,11 @@ export async function processVolume ({ db, symbol, data, interval }) {
           assetId,
           intervalId,
           timestamp: ts,
-          open: ohlc.sumOpen / count,
-          high: ohlc.sumHigh / count,
-          low: ohlc.sumLow / count,
-          close: ohlc.sumClose / count,
-          volume: ohlc.volume // totalizado
+          open: ohlc.open / count,
+          high: ohlc.high,
+          low: ohlc.low,
+          close: ohlc.close / count,
+          volume: ohlc.volume
         }
         await volumeRepo.save(data)
         if (isBaseInterval) {
@@ -203,6 +200,6 @@ export async function processVolume ({ db, symbol, data, interval }) {
         totalSaved++
       }
     }
-    console.log(`Volume OHLC importado para ${symbol}. Registros guardados: ${totalSaved}`)
+    console.log(`Volume OHLC importado para ${asset}. Registros guardados: ${totalSaved}`)
   })
 }
