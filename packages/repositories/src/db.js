@@ -24,10 +24,6 @@ class DatabaseConnection {
     throw new DatabaseQueryError('Method replaceInto not implemented or query failure')
   }
 
-  async insertIntoSelect (table, insertColumns, uniqueKeys, selectSql, ...selectParams) {
-    throw new DatabaseQueryError('Method selectInsert not implemented or query failure')
-  }
-
   async transaction (callback) {
     throw new DatabaseQueryError('Method transaction not implemented or transaction failure')
   }
@@ -135,15 +131,6 @@ class MySQLConnection extends DatabaseConnection {
     const values = Object.values(data)
     try {
       return await this.execute(sql, values)
-    } catch (err) {
-      throw new DatabaseQueryError(`MySQL execute failed: ${err.message}`)
-    }
-  }
-
-  async insertIntoSelect (table, insertColumns, uniqueKeys, selectSql, ...selectParams) {
-    const sql = this.#insertIntoSql(table, uniqueKeys.concat(insertColumns), selectSql, uniqueKeys)
-    try {
-      return await this.execute(sql, selectParams)
     } catch (err) {
       throw new DatabaseQueryError(`MySQL execute failed: ${err.message}`)
     }
@@ -316,15 +303,6 @@ class PostgreSQLConnection extends DatabaseConnection {
     }
   }
 
-  async insertIntoSelect (table, insertColumns, uniqueKeys, selectSql, ...selectParams) {
-    const sql = this.#insertIntoSql(table, uniqueKeys.concat(insertColumns), selectSql, uniqueKeys)
-    try {
-      return await this.execute(sql, selectParams)
-    } catch (err) {
-      throw new DatabaseQueryError(`PostgreSQL insertIntoSelect failed: ${err.message}`)
-    }
-  }
-
   async disconnect () {
     if (this.client) {
       this.client.release()
@@ -413,21 +391,6 @@ export class BaseRepository {
 
   async replaceInto (data, uniqueKeys) {
     return this.#db.replaceInto(this.tableName, data, uniqueKeys)
-  }
-
-  async insertIntoSelect (
-    insertColumns,
-    uniqueKeys,
-    selectSql,
-    ...selectParams
-  ) {
-    return this.#db.insertIntoSelect(
-      this.tableName,
-      insertColumns,
-      uniqueKeys,
-      selectSql,
-      ...selectParams
-    )
   }
 
   async transaction (callback) {

@@ -2,10 +2,9 @@ import fs from 'fs'
 import yargs from 'yargs'
 import path from 'path'
 import { hideBin } from 'yargs/helpers'
-import 'dotenv/config'
 
 import { JsonDataLoader } from '../src/dataLoader.js'
-import { DatabaseFactory } from '@tdf/repositories'
+import { connection } from '@tdf/repositories'
 import {
   processOpenInterest,
   processLiquidations,
@@ -76,22 +75,12 @@ const argv = yargs(hideBin(process.argv))
   .alias('help', 'h')
   .argv
 
-const dbConfig = {
-  connection: process.env.DB_CONNECTION,
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  timezone: process.env.DB_TIMEZONE || 'Z'
-}
-
 async function handler () {
   const { resource, asset, interval } = argv
   const filename = `${asset.toLowerCase()}_${interval}_${resource}`
   const jsonFilePath = path.resolve(storageDir, `${filename}.json`)
 
-  const db = DatabaseFactory.createConnection(dbConfig)
+  const db = connection()
   const dataLoader = new JsonDataLoader(jsonFilePath)
   let data
   try {

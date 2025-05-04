@@ -14,11 +14,16 @@
     "build": "echo \"No build step required\"",
     "tdf-sync-repo": "node ./bin/sync.js"
   },
-  "keywords": ["database", "repository", "mysql", "postgresql", "trading"],
+  "keywords": [
+    "database",
+    "repository",
+    "mysql",
+    "postgresql",
+    "trading"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mysql2": "^3.9.7",
-    "dotenv": "^16.4.5"
+    "@tdf/database": "workspace:^"
   }
 }

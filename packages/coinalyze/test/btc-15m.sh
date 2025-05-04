@@ -1,0 +1,1 @@
+pnpm tdf-coinalyze-downloader -r vl -i 15min -a btc -f 2025-01-01 -t 2025-12-31

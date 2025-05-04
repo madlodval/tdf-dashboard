@@ -134,14 +134,12 @@ function parseDateOrTimestamp (val, fallback, isEndOfDay = false) {
   if (!val) return fallback
   if (/^\d+$/.test(val)) return parseInt(val, 10)
   const d = new Date(val)
-  console.log(val)
   if (!isNaN(d.getTime())) {
     if (isEndOfDay) {
       d.setUTCHours(23, 59, 59, 999)
     } else {
       d.setUTCHours(0, 0, 0, 0)
     }
-    console.log(d)
     return Math.floor(d.getTime() / 1000)
   }
   return fallback

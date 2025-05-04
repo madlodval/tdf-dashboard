@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
 import 'dotenv/config'
-import { connectWithRetry, registerRoutes, setupGracefulShutdown } from './helpers.js';
+import { connectWithRetry, registerRoutes, setupGracefulShutdown } from './helpers.js'
 import {
   openInterestHandler,
   latestOIByExchangeHandler,

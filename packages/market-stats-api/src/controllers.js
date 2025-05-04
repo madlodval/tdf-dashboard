@@ -58,7 +58,7 @@ export const latestOIByExchangeHandler = ({ assetRepository, openInterestReposit
 export const liquidationsHandler = ({ assetRepository, liquidationRepository, intervalRepository }) => async (req, res) => {
   const { assetId, intervalId } = await getAssetAndInterval({ req, res, assetRepository, intervalRepository })
   if (!assetId || !intervalId) return
-  const liquidations = await liquidationRepository.findAllByAssetId(assetId, intervalId)
+  const liquidations = await liquidationRepository.findAllAccumByAssetId(assetId, intervalId)
 
   res.status(200).json(
     compressTimeSeries(liquidations, 'longs', 'shorts')

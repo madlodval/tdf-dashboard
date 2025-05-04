@@ -6,8 +6,7 @@ import {
   VolumeRepository,
   LiquidationRepository,
   VolumeBaseRepository,
-  LiquidationBaseRepository,
-  isIntervalBase
+  LiquidationBaseRepository
 } from '@tdf/repositories'
 
 function extractExchangeCode (symbol) {
@@ -49,6 +48,8 @@ export async function processOpenInterest ({ db, asset, data }) {
     if (!assetId) throw new Error(`Asset not found: ${asset}`)
     const getExchangeId = createExchangeIdCache(exchangeRepo)
     const acc = new Map()
+    const lastTimestampProcessed = await oiRepo.getLastTimestamp(assetId)
+
     for (const market of data) {
       const exchangeId = await getExchangeId(market.symbol)
       if (!exchangeId) {
@@ -59,6 +60,9 @@ export async function processOpenInterest ({ db, asset, data }) {
       }
       for (const entry of market.history) {
         const ts = entry.t
+        if (ts <= lastTimestampProcessed) {
+          continue
+        }
         const exMap = acc.get(exchangeId)
         const ohlc = exMap.get(ts) || {
           open: 0,
@@ -102,34 +106,67 @@ export async function processLiquidations ({ db, asset, data, interval }) {
     const liquidationRepo = new LiquidationRepository(db)
     const liquidationRepoBase = new LiquidationBaseRepository(db)
     const intervalRepo = new IntervalRepository(db)
+    const syncRepo = new LiquidationRepository.SyncRepository(db)
     const assetId = await assetRepo.findIdBySymbol(asset)
     if (!assetId) throw new Error(`Asset not found: ${asset}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
     if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isBaseInterval = isIntervalBase(seconds)
+    const isBaseInterval = IntervalRepository.isBase(seconds)
 
     const getExchangeId = createExchangeIdCache(exchangeRepo)
+
+    let lastTimestampProcessed = await syncRepo.getLastTimestamp(intervalId)
+    const lastSyncTimestamp = lastTimestampProcessed
+    const acc = new Map()
 
     for (const block of data) {
       const exchangeId = await getExchangeId(block.symbol)
       if (!exchangeId) continue
-
+      if (!acc.has(exchangeId)) {
+        acc.set(exchangeId, new Map())
+      }
       for (const entry of block.history) {
-        const data = {
-          exchangeId,
-          assetId,
-          intervalId,
-          timestamp: entry.t,
-          longs: entry.l,
-          shorts: entry.s
+        const timestamp = entry.t
+        if (timestamp <= lastSyncTimestamp) {
+          continue
         }
-        await liquidationRepo.save(data)
-        if (isBaseInterval) {
-          await liquidationRepoBase.save(data)
+        const exMap = acc.get(exchangeId)
+        const liquidationEntry = exMap.get(timestamp) || { longs: 0, shorts: 0 }
+        liquidationEntry.longs += entry.l
+        liquidationEntry.shorts += entry.s
+        exMap.set(timestamp, liquidationEntry)
+
+        if (timestamp > lastTimestampProcessed) {
+          lastTimestampProcessed = timestamp
         }
       }
     }
-    console.log(`Liquidations imported for ${asset}`)
+
+    let totalSaved = 0
+    for (const [exchangeId, tsMap] of acc.entries()) {
+      for (const [timestamp, { longs, shorts }] of tsMap.entries()) {
+        const dataToSaveAgg = {
+          exchangeId,
+          assetId,
+          intervalId,
+          timestamp,
+          longs,
+          shorts
+        }
+        await liquidationRepo.save(dataToSaveAgg)
+        if (isBaseInterval) {
+          await liquidationRepoBase.save(dataToSaveAgg)
+        }
+        totalSaved++
+      }
+    }
+
+    if (lastTimestampProcessed > lastSyncTimestamp) {
+      await syncRepo.updateLastTimestamp(intervalId, lastTimestampProcessed)
+      console.log(`[Liquidations Processor] Updated sync timestamp for interval ${interval} to ${lastTimestampProcessed}`)
+    }
+
+    console.log(`Liquidations imported for ${asset}, interval ${interval}. Registros guardados: ${totalSaved}`)
   })
 }
 
@@ -140,14 +177,20 @@ export async function processVolume ({ db, asset, data, interval }) {
     const volumeRepo = new VolumeRepository(db)
     const volumeRepoBase = new VolumeBaseRepository(db)
     const intervalRepo = new IntervalRepository(db)
+    const syncVolumeRepo = new VolumeRepository.SyncRepository(db)
     const assetId = await assetRepo.findIdBySymbol(asset)
     if (!assetId) throw new Error(`Asset not found: ${asset}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
     if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isBaseInterval = isIntervalBase(seconds)
+    const isBaseInterval = IntervalRepository.isBase(seconds)
 
     const getExchangeId = createExchangeIdCache(exchangeRepo)
     const acc = new Map()
+    let lastTimestampProcessed = await syncVolumeRepo.getLastTimestamp(intervalId)
+
+    const lastSyncTimestamp = lastTimestampProcessed
+
+    console.log('TIMES: ', lastSyncTimestamp, lastTimestampProcessed)
 
     for (const market of data) {
       const exchangeId = await getExchangeId(market.symbol)
@@ -159,6 +202,9 @@ export async function processVolume ({ db, asset, data, interval }) {
       }
       for (const entry of market.history) {
         const ts = entry.t
+        if (ts <= lastSyncTimestamp) {
+          continue
+        }
         const exMap = acc.get(exchangeId)
         const ohlc = exMap.get(ts) || {
           open: 0,
@@ -175,23 +221,25 @@ export async function processVolume ({ db, asset, data, interval }) {
         ohlc.volume += entry.v
         ohlc.count += 1
         exMap.set(ts, ohlc)
+        if (ts > lastTimestampProcessed) {
+          lastTimestampProcessed = ts
+        }
       }
     }
 
     let totalSaved = 0
     for (const [exchangeId, tsMap] of acc.entries()) {
-      for (const [ts, ohlc] of tsMap.entries()) {
-        const count = ohlc.count || 1
+      for (const [ts, { open, count, low, high, close, volume }] of tsMap.entries()) {
         const data = {
           exchangeId,
           assetId,
           intervalId,
           timestamp: ts,
-          open: ohlc.open / count,
-          high: ohlc.high,
-          low: ohlc.low,
-          close: ohlc.close / count,
-          volume: ohlc.volume
+          open: open / count,
+          high,
+          low,
+          close: close / count,
+          volume
         }
         await volumeRepo.save(data)
         if (isBaseInterval) {
@@ -199,6 +247,11 @@ export async function processVolume ({ db, asset, data, interval }) {
         }
         totalSaved++
       }
+    }
+
+    if (lastTimestampProcessed > lastSyncTimestamp) {
+      await syncVolumeRepo.updateLastTimestamp(intervalId, lastTimestampProcessed)
+      console.log(`[Volume Processor] Updated sync timestamp for interval ${interval} to ${lastTimestampProcessed}`)
     }
     console.log(`Volume OHLC importado para ${asset}. Registros guardados: ${totalSaved}`)
   })
