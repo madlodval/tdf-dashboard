@@ -1,7 +1,9 @@
-import { BaseRepository } from '@tdf/database'
+import { Repository } from '@tdf/database'
+import { AssetRepository } from './asset.js'
+import { IntervalRepository, INTERVAL_BASE } from './interval.js'
 
 // Base class for sync repositories
-export class BaseSyncRepository extends BaseRepository {
+export class SyncRepository extends Repository {
   constructor (db, tableName) {
     super(db, tableName)
     this.syncTableName = `sync_${tableName}`
@@ -19,31 +21,51 @@ export class BaseSyncRepository extends BaseRepository {
     return this.quote(this.baseTableName)
   }
 
-  async getMaxBaseTimestamp () {
-    const [maxBaseTimestampRow] = await this.query(
-      `SELECT MAX(timestamp) as max_ts FROM ${this.quotedBaseTableName}`
-    )
-    return maxBaseTimestampRow[0].max_ts ? maxBaseTimestampRow[0].max_ts : 0
-  }
-
-  async getLastTimestamp (intervalId) {
+  async getLastTimestamp (assetId, intervalId) {
     const [rows] = await this.query(
-      `SELECT timestamp FROM ${this.quotedSyncTableName} WHERE interval_id = ?`,
-      [intervalId]
+      `SELECT timestamp
+        FROM ${this.quotedSyncTableName}
+        WHERE asset_id = ? AND interval_id = ?`,
+      [assetId, intervalId]
     )
     return rows.length > 0 && rows[0].timestamp !== null ? +rows[0].timestamp : 0
   }
 
-  async updateLastTimestamp (intervalId, timestamp) {
+  async updateLastTimestamp (assetId, intervalId, timestamp) {
     await this.execute(
-      `UPDATE ${this.quotedSyncTableName} SET timestamp = ? WHERE interval_id = ?`,
-      [timestamp, intervalId]
+      `UPDATE ${this.quotedSyncTableName}
+        SET timestamp = ?
+        WHERE asset_id = ? AND interval_id = ?`,
+      [timestamp, assetId, intervalId]
     )
+  }
+
+  async syncFromBase () {
+    return this.transaction(async (db) => {
+      const intervals = await new IntervalRepository(db).findAll()
+      const assets = await new AssetRepository(db).findAllIds()
+      let totalSynced = 0
+      for (const assetId of assets) {
+        for (const interval of intervals) {
+          const result = await this.call(
+            `sync_${this.tableName}_intervals`, // procedure name
+            assetId,
+            interval.id,
+            interval.seconds,
+            INTERVAL_BASE
+          )
+
+          const affectedRows = result && result[0] && result[0].affectedRows !== undefined ? result[0].affectedRows : 0
+          totalSynced += affectedRows
+        }
+      }
+      return totalSynced
+    })
   }
 }
 
 // Base class for data repositories
-export class BaseDataRepository extends BaseRepository {
+export class BaseSyncRepository extends Repository {
   async save (data) {
     return this.replaceInto({
       exchange_id: data.exchangeId,
@@ -58,10 +80,12 @@ export class BaseDataRepository extends BaseRepository {
     return this.quote(`aggregated_${this.tableName}`)
   }
 
+  get SyncRepository () {
+    return new SyncRepository(this.db, this.tableName)
+  }
+
   async syncFromBase () {
-    // Assuming SyncRepository is a static property of the concrete class
-    const syncRepo = new this.constructor.SyncRepository(this.db)
-    return syncRepo.syncFromBase()
+    return this.SyncRepository.syncFromBase()
   }
 
   // Abstract method to be implemented by subclasses

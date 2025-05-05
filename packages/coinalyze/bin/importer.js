@@ -87,8 +87,8 @@ async function handler () {
     data = await dataLoader.load()
     await db.connect()
     const processor = processors[resource]
-    await processor({ db, asset: asset.toUpperCase(), data, interval: INTERVAL_CONVERT[interval] })
-    console.log('Import finished.')
+    const totals = await processor({ db, asset: asset.toUpperCase(), data, interval: INTERVAL_CONVERT[interval] })
+    console.log(`Import finished ${resource}, ${asset}, ${interval}, totals: ${totals}.`)
   } catch (error) {
     console.error('-----------------------------------------')
     console.error('Error crítico durante la ejecución:')

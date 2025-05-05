@@ -1,6 +1,6 @@
-import { BaseRepository } from '@tdf/database'
+import { Repository } from '@tdf/database'
 
-export class ExchangeRepository extends BaseRepository {
+export class ExchangeRepository extends Repository {
   constructor (db) {
     super(db, 'exchanges')
   }

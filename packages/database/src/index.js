@@ -1,7 +1,7 @@
 import { config } from './config.js'
 import { DatabaseFactory } from './factory.js'
-import { BaseRepository } from './repository.js'
+import { Repository } from './repository.js'
 
 const connection = () => DatabaseFactory.createConnection(config)
 
-export { connection, BaseRepository }
+export { connection, Repository }

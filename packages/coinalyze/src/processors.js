@@ -4,9 +4,7 @@ import {
   OpenInterestRepository,
   IntervalRepository,
   VolumeRepository,
-  LiquidationRepository,
-  VolumeBaseRepository,
-  LiquidationBaseRepository
+  LiquidationRepository
 } from '@tdf/repositories'
 
 function extractExchangeCode (symbol) {
@@ -95,7 +93,7 @@ export async function processOpenInterest ({ db, asset, data }) {
         totalSaved++
       }
     }
-    console.log(`Open Interest OHLC importado para ${asset}. Registros guardados: ${totalSaved}`)
+    return totalSaved
   })
 }
 
@@ -104,9 +102,9 @@ export async function processLiquidations ({ db, asset, data, interval }) {
     const assetRepo = new AssetRepository(db)
     const exchangeRepo = new ExchangeRepository(db)
     const liquidationRepo = new LiquidationRepository(db)
-    const liquidationRepoBase = new LiquidationBaseRepository(db)
+    const liquidationRepoBase = liquidationRepo.BaseRepository
+    const syncRepo = liquidationRepo.SyncRepository
     const intervalRepo = new IntervalRepository(db)
-    const syncRepo = new LiquidationRepository.SyncRepository(db)
     const assetId = await assetRepo.findIdBySymbol(asset)
     if (!assetId) throw new Error(`Asset not found: ${asset}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
@@ -115,7 +113,9 @@ export async function processLiquidations ({ db, asset, data, interval }) {
 
     const getExchangeId = createExchangeIdCache(exchangeRepo)
 
-    let lastTimestampProcessed = await syncRepo.getLastTimestamp(intervalId)
+    let lastTimestampProcessed = await syncRepo.getLastTimestamp(
+      assetId, intervalId
+    )
     const lastSyncTimestamp = lastTimestampProcessed
     const acc = new Map()
 
@@ -162,11 +162,13 @@ export async function processLiquidations ({ db, asset, data, interval }) {
     }
 
     if (lastTimestampProcessed > lastSyncTimestamp) {
-      await syncRepo.updateLastTimestamp(intervalId, lastTimestampProcessed)
-      console.log(`[Liquidations Processor] Updated sync timestamp for interval ${interval} to ${lastTimestampProcessed}`)
+      await syncRepo.updateLastTimestamp(
+        assetId,
+        intervalId,
+        lastTimestampProcessed
+      )
     }
-
-    console.log(`Liquidations imported for ${asset}, interval ${interval}. Registros guardados: ${totalSaved}`)
+    return totalSaved
   })
 }
 
@@ -175,9 +177,9 @@ export async function processVolume ({ db, asset, data, interval }) {
     const assetRepo = new AssetRepository(db)
     const exchangeRepo = new ExchangeRepository(db)
     const volumeRepo = new VolumeRepository(db)
-    const volumeRepoBase = new VolumeBaseRepository(db)
+    const volumeRepoBase = volumeRepo.BaseRepository
+    const syncVolumeRepo = volumeRepo.SyncRepository
     const intervalRepo = new IntervalRepository(db)
-    const syncVolumeRepo = new VolumeRepository.SyncRepository(db)
     const assetId = await assetRepo.findIdBySymbol(asset)
     if (!assetId) throw new Error(`Asset not found: ${asset}`)
     const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
@@ -186,11 +188,12 @@ export async function processVolume ({ db, asset, data, interval }) {
 
     const getExchangeId = createExchangeIdCache(exchangeRepo)
     const acc = new Map()
-    let lastTimestampProcessed = await syncVolumeRepo.getLastTimestamp(intervalId)
+    let lastTimestampProcessed = await syncVolumeRepo.getLastTimestamp(
+      assetId,
+      intervalId
+    )
 
     const lastSyncTimestamp = lastTimestampProcessed
-
-    console.log('TIMES: ', lastSyncTimestamp, lastTimestampProcessed)
 
     for (const market of data) {
       const exchangeId = await getExchangeId(market.symbol)
@@ -250,9 +253,12 @@ export async function processVolume ({ db, asset, data, interval }) {
     }
 
     if (lastTimestampProcessed > lastSyncTimestamp) {
-      await syncVolumeRepo.updateLastTimestamp(intervalId, lastTimestampProcessed)
-      console.log(`[Volume Processor] Updated sync timestamp for interval ${interval} to ${lastTimestampProcessed}`)
+      await syncVolumeRepo.updateLastTimestamp(
+        assetId,
+        intervalId,
+        lastTimestampProcessed
+      )
     }
-    console.log(`Volume OHLC importado para ${asset}. Registros guardados: ${totalSaved}`)
+    return totalSaved
   })
 }

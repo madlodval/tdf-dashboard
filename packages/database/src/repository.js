@@ -1,4 +1,4 @@
-export class BaseRepository {
+export class Repository {
   #db
   #tableName
 

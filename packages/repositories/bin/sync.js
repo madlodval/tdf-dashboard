@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 
-import { DatabaseFactory } from '../src/db.js'
-import { config } from '../src/config.js'
-import { LiquidationRepository, VolumeRepository } from '../src/index.js'
+import { LiquidationRepository, VolumeRepository, connection } from '../src/index.js'
 
 async function syncMasterTables () {
-  const db = DatabaseFactory.createConnection(config)
+  const db = connection()
   try {
     await db.connect()
     console.log('Connected to database')

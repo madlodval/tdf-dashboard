@@ -129,6 +129,7 @@ export class MySQLConnection extends DatabaseConnection {
         throw err
       }
     } catch (err) {
+      console.log(err)
       throw new DatabaseQueryError(`MySQL transaction failed: ${err.message}`)
     }
   }

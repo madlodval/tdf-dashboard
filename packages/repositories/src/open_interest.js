@@ -1,6 +1,6 @@
-import { BaseRepository } from '@tdf/database'
+import { Repository } from '@tdf/database'
 
-export class OpenInterestRepository extends BaseRepository {
+export class OpenInterestRepository extends Repository {
   constructor (db) {
     super(db, 'open_interest')
   }
@@ -62,11 +62,11 @@ export class OpenInterestRepository extends BaseRepository {
     }))
   }
 
-  async getLastTimestamp (assetId) {
-    const [maxBaseTimestampRow] = await this.query(
-      `SELECT MAX(timestamp) as max_ts FROM ${this.quotedTableName} WHERE asset_id = ?`
-      , [assetId])
-    return maxBaseTimestampRow[0].max_ts ? maxBaseTimestampRow[0].max_ts : 0
+  async getLastTimestamp (assetId, seconds) {
+    const [rows] = await this.query(
+      `SELECT MAX(timestamp) as max_ts FROM ${this.quotedTableName} WHERE asset_id = ? AND seconds % ? = 0`
+      , [assetId, seconds])
+    return rows.length > 0 && rows[0].max_ts !== null ? +rows[0].max_ts : 0
   }
 
   async findLatestCloseByExchange (assetId, seconds) {
