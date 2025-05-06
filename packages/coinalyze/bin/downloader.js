@@ -2,34 +2,29 @@ import fs from 'fs'
 import path from 'path'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
+import 'dotenv/config'
+
 import {
   IntervalRepository,
   OpenInterestRepository,
   VolumeRepository,
   LiquidationRepository,
-  AssetRepository
+  AssetRepository,
+  connection,
+  INTERVAL_SECONDS
 } from '@tdf/repositories'
 
 import {
   Coinalyze,
-  INTERVAL_ONE_MIN,
-  INTERVAL_FIVE_MIN,
-  INTERVAL_FIFTEEN_MIN,
-  INTERVAL_THIRTY_MIN,
-  INTERVAL_ONE_HOUR,
-  INTERVAL_TWO_HOUR,
-  INTERVAL_FOUR_HOUR,
-  INTERVAL_SIX_HOUR,
-  INTERVAL_TWELVE_HOUR,
-  INTERVAL_DAILY
+  INTERVAL_CONVERT
 } from '../src/client.js'
 import { JsonCache } from '../src/jsonCache.js'
 import { RESOURCE_OI, RESOURCE_LQ, RESOURCE_VL } from '../src/helpers.js'
 
 const RESOURCES = {
-  [RESOURCE_OI]: getOpenInterestHistory,
-  [RESOURCE_LQ]: getLiquidationHistory,
-  [RESOURCE_VL]: getOhlcvHistory
+  [RESOURCE_OI]: 'getOpenInterestHistory',
+  [RESOURCE_LQ]: 'getLiquidationHistory',
+  [RESOURCE_VL]: 'getOhlcvHistory'
 }
 
 const argv = yargs(hideBin(process.argv))
@@ -44,18 +39,7 @@ const argv = yargs(hideBin(process.argv))
     alias: 'i',
     type: 'string',
     description: 'Tipo de tiempo',
-    choices: [
-      INTERVAL_ONE_MIN,
-      INTERVAL_FIVE_MIN,
-      INTERVAL_FIFTEEN_MIN,
-      INTERVAL_THIRTY_MIN,
-      INTERVAL_ONE_HOUR,
-      INTERVAL_TWO_HOUR,
-      INTERVAL_FOUR_HOUR,
-      INTERVAL_SIX_HOUR,
-      INTERVAL_TWELVE_HOUR,
-      INTERVAL_DAILY
-    ],
+    choices: Object.keys(INTERVAL_CONVERT),
     demandOption: true
   })
   .option('asset', {
@@ -68,172 +52,207 @@ const argv = yargs(hideBin(process.argv))
     alias: 'f',
     type: 'string',
     description: 'Fecha de inicio (YYYY-MM-DD) o timestamp UNIX de inicio (segundos)'
-    // Default will be set by getDefaultRange based on interval
+
   })
   .option('to', {
     alias: 't',
     type: 'string',
     description: 'Fecha de fin (YYYY-MM-DD) o timestamp UNIX de fin (segundos)'
-    // Default will be set by getDefaultRange based on interval
+
   })
   .help()
   .alias('help', 'h')
   .argv
 
-let { resource, interval, asset, from, to } = argv
+const baseStorageDir = path.resolve(process.cwd(), 'storage')
+const earliestKnownTimestamp = 1420070400 // 2015-01-01
 
-// Calculate default range based on interval
-const defaultRange = getDefaultRange(interval)
+function ensureInterval (time, seconds, isTo = false) {
+  const round = isTo ? 'ceil' : 'floor'
 
-// Use provided 'from'/'to' arguments, falling back to defaultRange values if not provided
-from = parseDateOrTimestamp(from, defaultRange.from, false)
-// For 'to', we only use the default if the argument was NOT provided.
-to = parseDateOrTimestamp(to, argv.to === undefined ? defaultRange.to : to, true)
-
-const params = {
-  asset: asset.toUpperCase(),
-  interval: interval.toLowerCase(),
-  from,
-  to
+  return Math[round](time / seconds) * seconds
 }
 
-if (resource !== 'vl') {
-  params.convertToUsd = true
-}
+function getDefaultRange (now, interval) {
+  const maxIntraDayPoints = 2000 // Max 2000
+  const intervalDurationInSeconds = INTERVAL_SECONDS[interval] || 0
+  const intraDayRangeInSeconds = (
+    intervalDurationInSeconds === INTERVAL_SECONDS['1d']
+      ? 90 // 3 MONTH
+      : maxIntraDayPoints
+  ) * intervalDurationInSeconds
 
-// Cambia el directorio de salida a 'storage' en el cwd actual
-const storageDir = path.resolve(process.cwd(), 'storage')
-if (!fs.existsSync(storageDir)) {
-  fs.mkdirSync(storageDir, { recursive: true })
-}
-const filename = path.join(storageDir, `${asset.toLowerCase()}_${interval}_${resource}.json`)
+  const targetFrom = now - intraDayRangeInSeconds
+  const targetTo = now + intervalDurationInSeconds
 
-async function handler () {
-  const db = connection()
-  await db.connect()
-  const cache = new JsonCache(storageDir, 86400)
-  const client = new Coinalyze(process.env.COINALYZE_API_KEY)
-  const futureMarkets = await cache.remember('future-markets', async () => client.getFutureMarkets())
-  // const spotMarkets = await cache.remember('spot-markets', async () => client.getSpotMarkets())
-  // const symbols = client.getSymbolForAsset(futureMarkets, symbol.toUpperCase())
-  // NOTE: Using a hardcoded symbol for demonstration. You might want to dynamically get this.
-  const symbols = [`${asset.toUpperCase()}USD_PERP.A`]
+  const from = ensureInterval(targetFrom, intervalDurationInSeconds)
 
-  const assetId = await new AssetRepository(db).findIdByName(params.asset)
-  const { id: intervalId, seconds } = await new IntervalRepository(db).findByName(params.interval)
-  if (!assetId) throw new Error(`Asset not found: ${params.asset}`)
-  if (!intervalId) throw new Error(`Interval not found: ${params.interval}`)
+  const to = ensureInterval(targetTo, intervalDurationInSeconds, true)
 
-  const res = await RESOURCES[resource](
-    client,
-    db,
-    { intervalId, seconds, assetId },
-    { symbols, ...params }
-  )
-
-  fs.writeFileSync(filename, JSON.stringify(res), 'utf8')
-}
-
-function getDefaultRange (interval) {
-  const now = Math.floor(Date.now() / 1000)
-  const maxIntradayPoints = 2000 // Maximum points for intraday intervals as per API doc
-  const ninetyDaysInSeconds = 90 * 24 * 3600
-
-  // Calculate end of current year timestamp
-  const currentYear = new Date().getFullYear()
-  const endOfYear = new Date(currentYear + 1, 0, 1) // January 1st of next year
-  const endOfYearTimestamp = Math.floor(endOfYear.getTime() / 1000) - 1 // Last second of current year
-
-  let intervalDurationInSeconds
-
-  switch (interval) {
-    case INTERVAL_ONE_MIN:
-      intervalDurationInSeconds = 60
-      break
-    case INTERVAL_FIVE_MIN:
-      intervalDurationInSeconds = 5 * 60
-      break
-    case INTERVAL_FIFTEEN_MIN:
-      intervalDurationInSeconds = 15 * 60
-      break
-    case INTERVAL_THIRTY_MIN:
-      intervalDurationInSeconds = 30 * 60
-      break
-    case INTERVAL_ONE_HOUR:
-      intervalDurationInSeconds = 60 * 60
-      break
-    case INTERVAL_TWO_HOUR:
-      intervalDurationInSeconds = 2 * 60 * 60
-      break
-    case INTERVAL_FOUR_HOUR:
-      intervalDurationInSeconds = 4 * 60 * 60
-      break
-    case INTERVAL_SIX_HOUR:
-      intervalDurationInSeconds = 6 * 60 * 60
-      break
-    case INTERVAL_TWELVE_HOUR:
-      intervalDurationInSeconds = 12 * 60 * 60
-      break
-    case INTERVAL_DAILY:
-      // For daily interval, calculate 'from' as 90 days back, 'to' is end of year by default
-      return { from: now - ninetyDaysInSeconds, to: endOfYearTimestamp }
-    default:
-      // Fallback to 7 days if interval is somehow not matched (shouldn't happen with yargs choices)
-      return { from: now - 7 * 24 * 3600, to: endOfYearTimestamp } // Also default to end of year for fallback
+  return {
+    from,
+    to
   }
-
-  // For intraday intervals, calculate 'from' based on max points and interval duration, 'to' is end of year by default
-  const intradayRangeInSeconds = maxIntradayPoints * intervalDurationInSeconds
-  return { from: now - intradayRangeInSeconds, to: endOfYearTimestamp }
 }
 
 function parseDateOrTimestamp (val, fallback, isEndOfDay = false) {
-  // Use fallback if val is undefined or null, UNLESS it's the 'to' argument and it was explicitly provided (even if it's an empty string or invalid format, we'll handle that later)
   if (val === undefined || val === null) return fallback
+
   if (/^\d+$/.test(val)) return parseInt(val, 10)
+
   const d = new Date(val)
   if (!isNaN(d.getTime())) {
     if (isEndOfDay) {
-      // Set to the last second of the day
       d.setUTCHours(23, 59, 59, 999)
     } else {
-      // Set to the beginning of the day
       d.setUTCHours(0, 0, 0, 0)
     }
-    return Math.floor(d.getTime() / 1000)
+
+    return ensureInterval(d.getTime(), isEndOfDay)
   }
-  // If val was provided but is not a valid date/timestamp, return the fallback
+
   return fallback
 }
 
-async function getOpenInterestHistory (client, db, { assetId, seconds }, params) {
-  const oiRepo = new OpenInterestRepository(db)
-  const lastSyncTimestamp = await oiRepo.getLastTimestamp(assetId, seconds)
-  if (!IntervalRepository.isDaily(seconds) && lastSyncTimestamp > 0) {
-    params.from = lastSyncTimestamp
-  }
+async function getLastSyncTimestampForResource (db, resource, assetId, intervalId, seconds) {
+  switch (resource) {
+    case RESOURCE_OI:
 
-  return client.getOpenInterestHistory(params)
+      return new OpenInterestRepository(db).getLastTimestamp(assetId, seconds)
+    case RESOURCE_LQ:
+
+      return new LiquidationRepository(db).SyncRepository.getLastTimestamp(assetId, intervalId)
+    case RESOURCE_VL:
+
+      return new VolumeRepository(db).SyncRepository.getLastTimestamp(assetId, intervalId)
+    default:
+      console.warn(`Unknown resource type '${resource}' for getting last sync timestamp. Returning 0.`)
+      return 0
+  }
 }
 
-async function getLiquidationHistory (client, db, { intervalId, assetId, seconds }, params) {
-  const lqRepo = new LiquidationRepository(db)
-  const lastSyncTimestamp = await lqRepo.SyncRepository.getLastTimestamp(assetId, intervalId)
-  if (!IntervalRepository.isDaily(seconds) && lastSyncTimestamp > 0) {
-    params.from = lastSyncTimestamp
+function getSeconds (time) {
+  if (time instanceof Date) {
+    time = time.getTime()
   }
-
-  return client.getLiquidationHistory(params)
+  return Math.floor(time / 1000)
 }
 
-async function getOhlcvHistory (client, db, { intervalId, assetId, seconds }, params) {
-  const vlRepo = new VolumeRepository(db)
-  const lastSyncTimestamp = await vlRepo.SyncRepository.getLastTimestamp(assetId, intervalId)
-  if (!IntervalRepository.isDaily(seconds) && lastSyncTimestamp > 0) {
-    params.from = lastSyncTimestamp
-  }
+async function handler () {
+  let db
+  try {
+    db = connection()
+    await db.connect()
+    const { resource, interval, asset, from, to } = argv
+    const cache = new JsonCache(baseStorageDir, INTERVAL_SECONDS['1d'])
+    const client = new Coinalyze(process.env.COINALYZE_API_KEY)
 
-  return client.getOhlcvHistory(params)
+    const symbols = ['BTCUSD_PERP.A']
+
+    const assetRepo = new AssetRepository(db)
+    const intervalRepo = new IntervalRepository(db)
+    const assetId = await assetRepo.findIdBySymbol(asset.toUpperCase())
+    const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
+    console.log('SECONDS: ', seconds)
+    if (!assetId) {
+      console.error(`Error: Asset not found in database: ${asset}`)
+      process.exit(1)
+    }
+    if (!intervalId) {
+      console.error(`Error: Interval not found in database: ${interval}`)
+      process.exit(1)
+    }
+
+    const downloadRanges = []
+    const now = getSeconds(Date.now())
+
+    if (from === undefined && to === undefined && seconds === INTERVAL_SECONDS['1d']) {
+      const currentYear = new Date().getFullYear()
+
+      const previousYear = currentYear - 1
+      const endOfPreviousYearTimestamp = getSeconds(
+        new Date(`${previousYear}-12-31T23:59:59Z`)
+      )
+
+      downloadRanges.push({
+        from: earliestKnownTimestamp,
+        to: endOfPreviousYearTimestamp
+      })
+
+      const fromCurrentYear = getSeconds(
+        new Date(`${currentYear}-01-01T00:00:00Z`)
+      )
+      downloadRanges.push({
+        from: ensureInterval(fromCurrentYear, seconds),
+        to: ensureInterval(now + seconds, seconds, true)
+      })
+    } else {
+      const defaultRange = getDefaultRange(now, interval)
+      console.log(defaultRange)
+      const finalFrom = parseDateOrTimestamp(from, defaultRange.from, false)
+      const finalTo = parseDateOrTimestamp(to, to === undefined ? defaultRange.to : to, true)
+      downloadRanges.push({ from: finalFrom, to: finalTo })
+    }
+
+    const lastSyncTimestamp = await getLastSyncTimestampForResource(db, resource, assetId, intervalId, seconds)
+
+    for (const range of downloadRanges) {
+      if (lastSyncTimestamp >= range.to) {
+        console.log(`Skipping download for ${resource} data for ${asset} at ${interval} from ${new Date(range.from * 1000).toISOString()} to ${new Date(range.to * 1000).toISOString()}: Already synchronized.`)
+        continue
+      }
+
+      if (!IntervalRepository.isDaily(seconds) && lastSyncTimestamp >= range.from) {
+        range.from = lastSyncTimestamp + seconds
+        console.log(`Adjusting download 'from' date to ${range.from} for ${resource} data for ${asset} at ${interval}.`)
+      }
+
+      const resourceDir = path.join(baseStorageDir, resource)
+      const assetDir = path.join(resourceDir, asset.toLowerCase())
+      const intervalDir = path.join(assetDir, interval)
+
+      const filename = `${range.from}-${range.to}.json`
+      const filePath = path.join(intervalDir, filename)
+
+      if (fs.existsSync(filePath)) {
+        continue
+      }
+
+      const clientMethod = RESOURCES[resource]
+      const currentParams = {
+        asset: asset.toUpperCase(),
+        interval: INTERVAL_CONVERT[interval], // interval in coinalyze
+        from: range.from,
+        to: range.to
+      }
+
+      if (resource !== RESOURCE_VL) {
+        currentParams.convertToUsd = true
+      }
+
+      console.log(`Downloading ${resource} data for ${asset} at ${interval} from ${new Date(range.from * 1000).toISOString()} to ${new Date(range.to * 1000).toISOString()}`)
+
+      const res = await client[clientMethod]({ symbols, ...currentParams })
+
+      if (!fs.existsSync(intervalDir)) {
+        fs.mkdirSync(intervalDir, { recursive: true })
+      }
+
+      fs.writeFileSync(filePath, JSON.stringify(res), 'utf8')
+      console.log(`Data saved to ${filePath}`)
+    }
+  } catch (error) {
+    console.error('-----------------------------------------')
+    console.error('Critical error during execution:')
+    console.error(error.message)
+    console.error(error.stack)
+    console.error('-----------------------------------------')
+    process.exitCode = 1
+  } finally {
+    if (db) {
+      await db.disconnect()
+    }
+  }
 }
 
 handler().catch(e => console.error(e))

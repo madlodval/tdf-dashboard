@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'fs/promises'
 import yargs from 'yargs'
 import path from 'path'
 import { hideBin } from 'yargs/helpers'
@@ -10,28 +10,13 @@ import {
   processLiquidations,
   processVolume
 } from '../src/processors.js'
+
 import {
-  INTERVAL_ONE_MIN,
-  INTERVAL_FIVE_MIN,
-  INTERVAL_FIFTEEN_MIN,
-  INTERVAL_THIRTY_MIN,
-  INTERVAL_ONE_HOUR,
-  INTERVAL_TWO_HOUR,
-  INTERVAL_FOUR_HOUR,
-  INTERVAL_SIX_HOUR,
-  INTERVAL_TWELVE_HOUR,
-  INTERVAL_DAILY,
   INTERVAL_CONVERT
 } from '../src/client.js'
 import { RESOURCE_OI, RESOURCE_LQ, RESOURCE_VL } from '../src/helpers.js'
 
-// Cambia el directorio de salida a 'storage' en el cwd actual
-const storageDir = path.resolve(process.cwd(), 'storage')
-if (!fs.existsSync(storageDir)) {
-  fs.mkdirSync(storageDir, { recursive: true })
-}
-
-// dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
+const baseStorageDir = path.resolve(process.cwd(), 'storage')
 
 const processors = {
   [RESOURCE_OI]: processOpenInterest,
@@ -57,18 +42,7 @@ const argv = yargs(hideBin(process.argv))
     alias: 'i',
     type: 'string',
     description: 'Interval of the data (e.g. 1day, 1min)',
-    choices: [
-      INTERVAL_ONE_MIN,
-      INTERVAL_FIVE_MIN,
-      INTERVAL_FIFTEEN_MIN,
-      INTERVAL_THIRTY_MIN,
-      INTERVAL_ONE_HOUR,
-      INTERVAL_TWO_HOUR,
-      INTERVAL_FOUR_HOUR,
-      INTERVAL_SIX_HOUR,
-      INTERVAL_TWELVE_HOUR,
-      INTERVAL_DAILY
-    ],
+    choices: Object.keys(INTERVAL_CONVERT),
     demandOption: true
   })
   .help()
@@ -77,27 +51,104 @@ const argv = yargs(hideBin(process.argv))
 
 async function handler () {
   const { resource, asset, interval } = argv
-  const filename = `${asset.toLowerCase()}_${interval}_${resource}`
-  const jsonFilePath = path.resolve(storageDir, `${filename}.json`)
+
+  const dataDir = path.join(baseStorageDir, resource, asset.toLowerCase(), interval)
 
   const db = connection()
-  const dataLoader = new JsonDataLoader(jsonFilePath)
-  let data
+  let filesToImport = []
+
   try {
-    data = await dataLoader.load()
     await db.connect()
+
+    try {
+      filesToImport = await fs.readdir(dataDir)
+      filesToImport = filesToImport.filter(file => file.endsWith('.json'))
+
+      filesToImport.sort((a, b) => {
+        const [fromA, toA] = path.basename(a, '.json').split('-').map(Number)
+        const [fromB, toB] = path.basename(b, '.json').split('-').map(Number)
+        console.log(fromA, toA)
+        console.log(fromB, toB)
+        if (fromA === fromB) {
+          return toB - toA
+        }
+        return fromA - fromB
+      })
+
+      if (filesToImport.length === 0) {
+        console.log(`No .json files found in ${dataDir} to import.`)
+        await db.disconnect()
+        return
+      }
+    } catch (readDirError) {
+      if (readDirError.code === 'ENOENT') {
+        console.log(`Data directory not found: ${dataDir}. No files to import.`)
+        await db.disconnect()
+        return
+      } else {
+        throw new Error(`Error reading data directory ${dataDir}: ${readDirError.message}`)
+      }
+    }
+
     const processor = processors[resource]
-    const totals = await processor({ db, asset: asset.toUpperCase(), data, interval: INTERVAL_CONVERT[interval] })
-    console.log(`Import finished ${resource}, ${asset}, ${interval}, totals: ${totals}.`)
+    if (typeof processor !== 'function') {
+      throw new Error(`Processor function not found for resource: ${resource}`)
+    }
+
+    let totalFilesProcessed = 0
+    let totalRecordsImported = 0
+    let highestProcessedEndTime = -Infinity
+    console.log(filesToImport)
+    for (const filename of filesToImport) {
+      const jsonFilePath = path.join(dataDir, filename)
+      console.log(filename)
+      const [currentFrom, currentTo] = path
+        .basename(filename, '.json')
+        .split('-').map(Number)
+
+      const shouldProcessData = currentFrom >= highestProcessedEndTime || currentTo > highestProcessedEndTime
+
+      if (shouldProcessData) {
+        const dataLoader = new JsonDataLoader(jsonFilePath)
+        let data
+        try {
+          data = await dataLoader.load()
+          console.log(`Importing data from file: ${filename}`)
+          const recordsImportedInFile = await processor({ db, asset: asset.toUpperCase(), data, interval })
+          console.log(`Successfully imported ${recordsImportedInFile} records from ${filename}.`)
+          totalRecordsImported += recordsImportedInFile
+          totalFilesProcessed++
+
+          highestProcessedEndTime = Math.max(highestProcessedEndTime, currentTo)
+        } catch (importError) {
+          console.error('-----------------------------------------')
+          console.error(`Error importing data from file ${filename}:`)
+          console.error(importError.message)
+          console.error('-----------------------------------------')
+          continue
+        }
+      }
+
+      try {
+        await fs.unlink(jsonFilePath)
+      } catch (unlinkError) {
+        console.error(`Error deleting file ${filename}: ${unlinkError.message}`)
+      }
+    }
+
+    console.log(`Import process finished for resource: ${resource}, asset: ${asset}, interval: ${interval}.`)
+    console.log(`Total files processed: ${totalFilesProcessed}. Total records imported: ${totalRecordsImported}.`)
   } catch (error) {
     console.error('-----------------------------------------')
-    console.error('Error crítico durante la ejecución:')
+    console.error('Critical error during execution:')
     console.error(error.message)
-    console.error(error.stack) // Descomentar para ver el stack trace completo
+    console.error(error.stack)
     console.error('-----------------------------------------')
     process.exit(1)
   } finally {
-    await db.disconnect()
+    if (db) {
+      await db.disconnect()
+    }
   }
 }
 

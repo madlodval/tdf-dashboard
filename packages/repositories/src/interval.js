@@ -1,8 +1,21 @@
 import { Repository } from '@tdf/database'
 
 // Interval base in seconds for 5 minutes - assuming this constant is still needed here or imported
-export const INTERVAL_BASE = 300
-export const INTERVAL_DAILY = 86400
+
+export const INTERVAL_SECONDS = {
+  '1m': 60,
+  '5m': 300,
+  '15m': 900,
+  '30m': 1800,
+  '1h': 3600,
+  '2h': 7200,
+  '4h': 14400,
+  '6h': 21600,
+  '12h': 43200,
+  '1d': 86400
+}
+
+export const INTERVAL_BASE = INTERVAL_SECONDS['5m']
 
 export function isIntervalBase (seconds) {
   return seconds === INTERVAL_BASE
@@ -14,7 +27,7 @@ export class IntervalRepository extends Repository {
   }
 
   static isDaily (seconds) {
-    return seconds === INTERVAL_DAILY
+    return seconds === INTERVAL_SECONDS['1d']
   }
 
   constructor (db) {

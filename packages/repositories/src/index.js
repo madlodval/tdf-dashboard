@@ -1,21 +1,15 @@
-import { connection } from '@tdf/database'
-import { AssetRepository } from './asset.js'
-import { ExchangeRepository } from './exchange.js'
-import { OpenInterestRepository } from './open_interest.js'
-import {
+export { connection } from '@tdf/database'
+export { AssetRepository } from './asset.js'
+export { ExchangeRepository } from './exchange.js'
+export { OpenInterestRepository } from './open_interest.js'
+export {
   LiquidationRepository
 } from './liquidation.js'
-import {
+export {
   VolumeRepository
 } from './volume.js'
-import { IntervalRepository } from './interval.js'
 
 export {
-  AssetRepository,
-  ExchangeRepository,
-  OpenInterestRepository,
-  LiquidationRepository,
-  VolumeRepository,
   IntervalRepository,
-  connection
-}
+  INTERVAL_SECONDS
+} from './interval.js'

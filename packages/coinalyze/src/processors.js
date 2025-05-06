@@ -37,16 +37,23 @@ function createExchangeIdCache (exchangeRepo) {
   }
 }
 
-export async function processOpenInterest ({ db, asset, data }) {
+export async function processOpenInterest ({ db, asset, data, interval }) {
   return db.transaction(async () => {
     const assetRepo = new AssetRepository(db)
     const exchangeRepo = new ExchangeRepository(db)
+    const intervalRepo = new IntervalRepository(db)
     const oiRepo = new OpenInterestRepository(db)
     const assetId = await assetRepo.findIdBySymbol(asset)
     if (!assetId) throw new Error(`Asset not found: ${asset}`)
+    const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
+    if (!intervalId) throw new Error(`Interval not found: ${interval}`)
+
     const getExchangeId = createExchangeIdCache(exchangeRepo)
     const acc = new Map()
-    const lastTimestampProcessed = await oiRepo.getLastTimestamp(assetId)
+    const lastTimestampProcessed = await oiRepo.getLastTimestamp(
+      assetId,
+      seconds
+    )
 
     for (const market of data) {
       const exchangeId = await getExchangeId(market.symbol)
