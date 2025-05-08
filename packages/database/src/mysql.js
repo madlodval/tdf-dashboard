@@ -7,8 +7,11 @@ export class MySQLConnection extends DatabaseConnection {
     this.connection = null
   }
 
-  quoteField (field) {
-    return `\`${field}\``
+  quote (string) {
+    if (string.length >= 2 && string[0] === '`' && string[string.length - 1] === '`') {
+      return string
+    }
+    return `\`${string}\``
   }
 
   toParams (values) {
@@ -70,7 +73,7 @@ export class MySQLConnection extends DatabaseConnection {
   async call (procedureName, ...args) {
     try {
       const placeholders = `(${Array(args.length).fill('?').join(', ')})`
-      const sql = `CALL ${this.quoteField(procedureName)}${placeholders}`
+      const sql = `CALL ${this.escape(procedureName)}${placeholders}`
       return await this.execute(sql, args) // Pasar los argumentos como array
     } catch (err) {
       throw new DatabaseQueryError(`MySQL call failed: ${err.message}`)
@@ -78,20 +81,32 @@ export class MySQLConnection extends DatabaseConnection {
   }
 
   #insertIntoSql (table, columns, select, uniqueKeys) {
-    const quotedCols = columns.map(col => this.quoteField(col)).join(', ')
+    const quotedCols = columns.map(col => this.escape(col)).join(', ')
     const updateColumns = columns.filter(col => !uniqueKeys.includes(col))
     const quotedUpdateColumns = updateColumns.map(col => {
-      return `${this.quoteField(col)} = VALUES(${this.quoteField(col)})`
+      return `${this.escape(col)} = VALUES(${this.escape(col)})`
     }).join(', ')
-    return `INSERT INTO ${this.quoteField(table)} (${quotedCols}) ${select} ON DUPLICATE KEY UPDATE ${quotedUpdateColumns}`
+    return `INSERT INTO ${this.escape(table)} (${quotedCols}) ${select} ON DUPLICATE KEY UPDATE ${quotedUpdateColumns}`
   }
 
   async replaceInto (table, data, uniqueKeys = []) {
-    const columns = Object.keys(data)
-    const placeholders = columns.map(() => '?').join(', ')
-    const select = `VALUES (${placeholders})`
+    if (!Array.isArray(data)) {
+      data = [data]
+    }
+
+    if (data.length === 0) return
+
+    const columns = Object.keys(data[0])
+
+    const rowPlaceholders = data.map(() =>
+      `(${columns.map(() => '?').join(', ')})`
+    ).join(', ')
+
+    const select = `VALUES ${rowPlaceholders}`
     const sql = this.#insertIntoSql(table, columns, select, uniqueKeys)
-    const values = Object.values(data)
+
+    const values = data.flatMap(item => Object.values(item))
+
     try {
       return await this.execute(sql, values)
     } catch (err) {

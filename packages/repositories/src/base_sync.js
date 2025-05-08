@@ -5,26 +5,13 @@ import { IntervalRepository, INTERVAL_BASE } from './interval.js'
 // Base class for sync repositories
 export class SyncRepository extends Repository {
   constructor (db, tableName) {
-    super(db, tableName)
-    this.syncTableName = `sync_${tableName}`
-  }
-
-  get quotedSyncTableName () {
-    return this.quote(this.syncTableName)
-  }
-
-  get baseTableName () {
-    return `base_${this.tableName}`
-  }
-
-  get quotedBaseTableName () {
-    return this.quote(this.baseTableName)
+    super(db, `sync_${tableName}`)
   }
 
   async getLastTimestamp (assetId, intervalId) {
     const [rows] = await this.query(
       `SELECT timestamp
-        FROM ${this.quotedSyncTableName}
+        FROM ${this.quotedTableName}
         WHERE asset_id = ? AND interval_id = ?`,
       [assetId, intervalId]
     )
@@ -32,11 +19,12 @@ export class SyncRepository extends Repository {
   }
 
   async updateLastTimestamp (assetId, intervalId, timestamp) {
-    await this.execute(
-      `UPDATE ${this.quotedSyncTableName}
-        SET timestamp = ?
-        WHERE asset_id = ? AND interval_id = ?`,
-      [timestamp, assetId, intervalId]
+    await this.replaceInto({
+      asset_id: assetId,
+      interval_id: intervalId,
+      timestamp
+    },
+    ['assetId', 'intervalId']
     )
   }
 
@@ -67,13 +55,20 @@ export class SyncRepository extends Repository {
 // Base class for data repositories
 export class BaseSyncRepository extends Repository {
   async save (data) {
-    return this.replaceInto({
+    if (!Array.isArray(data)) {
+      data = [data]
+    }
+    return this.replaceInto(data.map(data => ({
       exchange_id: data.exchangeId,
       asset_id: data.assetId,
       interval_id: data.intervalId,
       timestamp: data.timestamp,
       ...this.getDataFields(data)
-    }, ['exchange_id', 'asset_id', 'interval_id', 'timestamp'])
+    })), this.getKeys())
+  }
+
+  getKeys () {
+    return ['exchange_id', 'asset_id', 'interval_id', 'timestamp']
   }
 
   get aggregatedTableName () {

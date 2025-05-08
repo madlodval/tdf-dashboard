@@ -114,7 +114,9 @@ async function handler () {
         try {
           data = await dataLoader.load()
           console.log(`Importing data from file: ${filename}`)
-          const recordsImportedInFile = await processor({ db, asset: asset.toUpperCase(), data, interval })
+          const recordsImportedInFile = await db.transaction(() =>
+            processor({ db, asset: asset.toUpperCase(), data, interval })
+          )
           console.log(`Successfully imported ${recordsImportedInFile} records from ${filename}.`)
           totalRecordsImported += recordsImportedInFile
           totalFilesProcessed++

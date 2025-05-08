@@ -114,11 +114,11 @@ function parseDateOrTimestamp (val, fallback, isEndOfDay = false) {
   return fallback
 }
 
-async function getLastSyncTimestampForResource (db, resource, assetId, intervalId, seconds) {
+async function getLastSyncTimestampForResource (db, resource, assetId, intervalId) {
   switch (resource) {
     case RESOURCE_OI:
 
-      return new OpenInterestRepository(db).getLastTimestamp(assetId, seconds)
+      return new OpenInterestRepository(db).SyncRepository.getLastTimestamp(assetId, intervalId)
     case RESOURCE_LQ:
 
       return new LiquidationRepository(db).SyncRepository.getLastTimestamp(assetId, intervalId)
@@ -152,14 +152,17 @@ async function handler () {
     const assetRepo = new AssetRepository(db)
     const intervalRepo = new IntervalRepository(db)
     const assetId = await assetRepo.findIdBySymbol(asset.toUpperCase())
-    const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
-    console.log('SECONDS: ', seconds)
+    const { id: intervalId, seconds, enabled } = await intervalRepo.findByName(interval)
     if (!assetId) {
       console.error(`Error: Asset not found in database: ${asset}`)
       process.exit(1)
     }
     if (!intervalId) {
       console.error(`Error: Interval not found in database: ${interval}`)
+      process.exit(1)
+    }
+    if (!enabled) {
+      console.error(`Error: Interval not found enabled: ${interval}`)
       process.exit(1)
     }
 
@@ -188,13 +191,12 @@ async function handler () {
       })
     } else {
       const defaultRange = getDefaultRange(now, interval)
-      console.log(defaultRange)
       const finalFrom = parseDateOrTimestamp(from, defaultRange.from, false)
       const finalTo = parseDateOrTimestamp(to, to === undefined ? defaultRange.to : to, true)
       downloadRanges.push({ from: finalFrom, to: finalTo })
     }
 
-    const lastSyncTimestamp = await getLastSyncTimestampForResource(db, resource, assetId, intervalId, seconds)
+    const lastSyncTimestamp = await getLastSyncTimestampForResource(db, resource, assetId, intervalId)
 
     for (const range of downloadRanges) {
       if (lastSyncTimestamp >= range.to) {

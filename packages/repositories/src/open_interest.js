@@ -1,34 +1,61 @@
 import { Repository } from '@tdf/database'
+import { BaseSyncRepository } from './base_sync.js'
 
-export class OpenInterestRepository extends Repository {
+class BaseRepository extends Repository {
+  constructor (db, tableName) {
+    super(db, `base_${tableName}`)
+  }
+
+  async save (data) {
+    if (!Array.isArray(data)) {
+      data = [data]
+    }
+    return this.replaceInto(data.map(({
+      exchangeId,
+      assetId,
+      timestamp,
+      open,
+      low,
+      close,
+      high
+    }) => ({
+      exchange_id: +exchangeId,
+      asset_id: +assetId,
+      timestamp: +timestamp,
+      open_value: +open,
+      high_value: +high,
+      low_value: +low,
+      close_value: +close
+    })), ['exchange_id', 'asset_id', 'timestamp'])
+  }
+}
+
+export class OpenInterestRepository extends BaseSyncRepository {
   constructor (db) {
     super(db, 'open_interest')
   }
 
-  get aggregatedTableName () {
-    return this.quote(`aggregated_${this.tableName}`)
+  get BaseRepository () {
+    return new BaseRepository(this.db, this.tableName)
   }
 
-  async save (data) {
-    return this.replaceInto({
-      exchange_id: data.exchangeId,
-      asset_id: data.assetId,
-      timestamp: data.timestamp,
-      open_value: data.open,
-      high_value: data.high,
-      low_value: data.low,
-      close_value: data.close
-    }, ['exchange_id', 'asset_id', 'timestamp'])
+  getDataFields ({ open, low, close, high }) {
+    return {
+      open_value: +open,
+      high_value: +high,
+      low_value: +low,
+      close_value: +close
+    }
   }
 
-  async findAllByAssetId (assetId, seconds) {
+  async findAllByAssetId (assetId, intervalId) {
     const sql = `
       SELECT timestamp, exchange_id, open_value, high_value, low_value, close_value
       FROM ${this.quotedTableName}
-      WHERE asset_id = ? AND seconds % ? = 0
+      WHERE asset_id = ? AND interval_id = ?
       ORDER BY timestamp ASC
     `
-    const params = [assetId, seconds]
+    const params = [assetId, intervalId]
     const [rows] = await this.query(sql, params)
     return rows.map(({ timestamp, exchange_id: exchangeId, open_value: openValue, high_value: highValue, low_value: lowValue, close_value: closeValue }) => ({
       timestamp: +timestamp,
@@ -40,7 +67,7 @@ export class OpenInterestRepository extends Repository {
     }))
   }
 
-  async findAllAccumByAssetId (assetId, seconds) {
+  async findAllAccumByAssetId (assetId, intervalId) {
     const sql = `
     SELECT
       timestamp,
@@ -49,9 +76,9 @@ export class OpenInterestRepository extends Repository {
       low,
       close
     FROM ${this.aggregatedTableName}
-    WHERE asset_id = ? AND seconds % ? = 0
+    WHERE asset_id = ? AND interval_id = ?
     `
-    const params = [assetId, seconds]
+    const params = [assetId, intervalId]
     const [rows] = await this.query(sql, params)
     return rows.map(row => ({
       time: +row.timestamp,
@@ -60,13 +87,6 @@ export class OpenInterestRepository extends Repository {
       low: +row.low,
       close: +row.close
     }))
-  }
-
-  async getLastTimestamp (assetId, seconds) {
-    const [rows] = await this.query(
-      `SELECT MAX(timestamp) as max_ts FROM ${this.quotedTableName} WHERE asset_id = ? AND seconds % ? = 0`
-      , [assetId, seconds])
-    return rows.length > 0 && rows[0].max_ts !== null ? +rows[0].max_ts : 0
   }
 
   async findLatestCloseByExchange (assetId, seconds) {

@@ -35,15 +35,15 @@ export class Repository {
     return this.#db.toParams(args)
   }
 
-  async replaceInto (data, uniqueKeys) {
-    return this.#db.replaceInto(this.tableName, data, uniqueKeys)
+  async replaceInto (data, uniqueKeys, tableName = undefined) {
+    return this.#db.replaceInto(tableName || this.tableName, data, uniqueKeys)
   }
 
   async transaction (callback) {
     return this.#db.transaction(callback.bind(null, this.#db))
   }
 
-  quote (field) {
-    return this.#db.quoteField(field)
+  quote (string) {
+    return this.#db.quote(string)
   }
 }

@@ -41,7 +41,7 @@ export class IntervalRepository extends Repository {
   }
 
   async findByName (name) {
-    const [rows] = await this.query(`SELECT id, seconds FROM ${this.quotedTableName} WHERE name = ?`, [name])
+    const [rows] = await this.query(`SELECT id, seconds, is_base, enabled FROM ${this.quotedTableName} WHERE name = ?`, [name])
     if (rows.length === 0) return { id: 0, seconds: 0 }
     return rows[0]
   }

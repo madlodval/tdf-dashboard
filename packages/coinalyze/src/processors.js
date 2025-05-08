@@ -37,137 +37,63 @@ function createExchangeIdCache (exchangeRepo) {
   }
 }
 
-export async function processOpenInterest ({ db, asset, data, interval }) {
-  return db.transaction(async () => {
-    const assetRepo = new AssetRepository(db)
-    const exchangeRepo = new ExchangeRepository(db)
-    const intervalRepo = new IntervalRepository(db)
-    const oiRepo = new OpenInterestRepository(db)
-    const assetId = await assetRepo.findIdBySymbol(asset)
-    if (!assetId) throw new Error(`Asset not found: ${asset}`)
-    const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
-    if (!intervalId) throw new Error(`Interval not found: ${interval}`)
+async function process ({ db, data, asset, interval }, mainRepo, processEntry, saveData) {
+  const assetRepo = new AssetRepository(db)
+  const exchangeRepo = new ExchangeRepository(db)
+  const intervalRepo = new IntervalRepository(db)
+  const syncRepo = mainRepo.SyncRepository
 
-    const getExchangeId = createExchangeIdCache(exchangeRepo)
-    const acc = new Map()
-    const lastTimestampProcessed = await oiRepo.getLastTimestamp(
+  const assetId = await assetRepo.findIdBySymbol(asset)
+  if (!assetId) throw new Error(`Asset not found: ${asset}`)
+
+  const { id: intervalId, is_base: isBase, enabled } = await intervalRepo.findByName(interval)
+  if (!intervalId) throw new Error(`Interval not found: ${interval}`)
+  if (!enabled) throw new Error(`Interval not enabled: ${interval}`)
+
+  const getExchangeId = createExchangeIdCache(exchangeRepo)
+
+  let lastTimestampProcessed = await syncRepo.getLastTimestamp(assetId, intervalId)
+  const lastSyncTimestamp = lastTimestampProcessed
+  const acc = new Map()
+
+  for (const block of data) {
+    const exchangeId = await getExchangeId(block.symbol)
+    if (!exchangeId) continue
+
+    if (!acc.has(exchangeId)) {
+      acc.set(exchangeId, new Map())
+    }
+
+    const lastTsProcessed = await processEntry({
+      history: block.history,
       assetId,
-      seconds
-    )
+      intervalId,
+      lastSyncTimestamp,
+      lastTimestampProcessed,
+      acc,
+      exchangeId
+    })
 
-    for (const market of data) {
-      const exchangeId = await getExchangeId(market.symbol)
-      if (!exchangeId) {
-        continue
-      }
-      if (!acc.has(exchangeId)) {
-        acc.set(exchangeId, new Map())
-      }
-      for (const entry of market.history) {
-        const ts = entry.t
-        if (ts <= lastTimestampProcessed) {
-          continue
-        }
-        const exMap = acc.get(exchangeId)
-        const ohlc = exMap.get(ts) || {
-          open: 0,
-          high: 0,
-          low: 0,
-          close: 0,
-          count: 0
-        }
-        ohlc.open += entry.o
-        ohlc.close += entry.c
-        ohlc.high += entry.h
-        ohlc.low += entry.l
-        ohlc.count += 1
-        exMap.set(ts, ohlc)
-      }
+    if (lastTsProcessed > lastTimestampProcessed) {
+      lastTimestampProcessed = lastTsProcessed
     }
+  }
 
-    let totalSaved = 0
-    for (const [exchangeId, tsMap] of acc.entries()) {
-      for (const [ts, ohlc] of tsMap.entries()) {
-        await oiRepo.save({
-          exchangeId,
-          assetId,
-          timestamp: ts,
-          open: ohlc.open,
-          high: ohlc.high,
-          low: ohlc.low,
-          close: ohlc.close
-        })
-        totalSaved++
-      }
+  const batch = []
+  for (const [exchangeId, tsMap] of acc.entries()) {
+    for (const [timestamp, entryData] of tsMap.entries()) {
+      batch.push({
+        timestamp,
+        exchangeId,
+        assetId,
+        intervalId,
+        ...entryData
+      })
     }
-    return totalSaved
-  })
-}
-
-export async function processLiquidations ({ db, asset, data, interval }) {
-  return db.transaction(async () => {
-    const assetRepo = new AssetRepository(db)
-    const exchangeRepo = new ExchangeRepository(db)
-    const liquidationRepo = new LiquidationRepository(db)
-    const liquidationRepoBase = liquidationRepo.BaseRepository
-    const syncRepo = liquidationRepo.SyncRepository
-    const intervalRepo = new IntervalRepository(db)
-    const assetId = await assetRepo.findIdBySymbol(asset)
-    if (!assetId) throw new Error(`Asset not found: ${asset}`)
-    const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
-    if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isBaseInterval = IntervalRepository.isBase(seconds)
-
-    const getExchangeId = createExchangeIdCache(exchangeRepo)
-
-    let lastTimestampProcessed = await syncRepo.getLastTimestamp(
-      assetId, intervalId
-    )
-    const lastSyncTimestamp = lastTimestampProcessed
-    const acc = new Map()
-
-    for (const block of data) {
-      const exchangeId = await getExchangeId(block.symbol)
-      if (!exchangeId) continue
-      if (!acc.has(exchangeId)) {
-        acc.set(exchangeId, new Map())
-      }
-      for (const entry of block.history) {
-        const timestamp = entry.t
-        if (timestamp <= lastSyncTimestamp) {
-          continue
-        }
-        const exMap = acc.get(exchangeId)
-        const liquidationEntry = exMap.get(timestamp) || { longs: 0, shorts: 0 }
-        liquidationEntry.longs += entry.l
-        liquidationEntry.shorts += entry.s
-        exMap.set(timestamp, liquidationEntry)
-
-        if (timestamp > lastTimestampProcessed) {
-          lastTimestampProcessed = timestamp
-        }
-      }
-    }
-
-    let totalSaved = 0
-    for (const [exchangeId, tsMap] of acc.entries()) {
-      for (const [timestamp, { longs, shorts }] of tsMap.entries()) {
-        const dataToSaveAgg = {
-          exchangeId,
-          assetId,
-          intervalId,
-          timestamp,
-          longs,
-          shorts
-        }
-        await liquidationRepo.save(dataToSaveAgg)
-        if (isBaseInterval) {
-          await liquidationRepoBase.save(dataToSaveAgg)
-        }
-        totalSaved++
-      }
-    }
-
+  }
+  if (batch.length) {
+    await saveData(batch, isBase)
+    console.log(lastTimestampProcessed, lastSyncTimestamp)
     if (lastTimestampProcessed > lastSyncTimestamp) {
       await syncRepo.updateLastTimestamp(
         assetId,
@@ -175,48 +101,104 @@ export async function processLiquidations ({ db, asset, data, interval }) {
         lastTimestampProcessed
       )
     }
-    return totalSaved
-  })
+  }
+  return batch.length
 }
 
-export async function processVolume ({ db, asset, data, interval }) {
-  return db.transaction(async () => {
-    const assetRepo = new AssetRepository(db)
-    const exchangeRepo = new ExchangeRepository(db)
-    const volumeRepo = new VolumeRepository(db)
-    const volumeRepoBase = volumeRepo.BaseRepository
-    const syncVolumeRepo = volumeRepo.SyncRepository
-    const intervalRepo = new IntervalRepository(db)
-    const assetId = await assetRepo.findIdBySymbol(asset)
-    if (!assetId) throw new Error(`Asset not found: ${asset}`)
-    const { id: intervalId, seconds } = await intervalRepo.findByName(interval)
-    if (!intervalId) throw new Error(`Interval not found: ${interval}`)
-    const isBaseInterval = IntervalRepository.isBase(seconds)
+export async function processOpenInterest (params) {
+  const oiRepo = new OpenInterestRepository(params.db)
 
-    const getExchangeId = createExchangeIdCache(exchangeRepo)
-    const acc = new Map()
-    let lastTimestampProcessed = await syncVolumeRepo.getLastTimestamp(
-      assetId,
-      intervalId
-    )
+  return process(
+    params,
+    oiRepo,
+    ({ history, acc, exchangeId, lastSyncTimestamp, lastTimestampProcessed }) => {
+      for (const entry of history) {
+        const timestamp = entry.t
+        if (timestamp <= lastSyncTimestamp) {
+          continue
+        }
 
-    const lastSyncTimestamp = lastTimestampProcessed
+        const exMap = acc.get(exchangeId)
+        const data = exMap.get(timestamp) || {
+          open: 0,
+          high: 0,
+          low: 0,
+          close: 0,
+          count: 0
+        }
 
-    for (const market of data) {
-      const exchangeId = await getExchangeId(market.symbol)
-      if (!exchangeId) {
-        continue
+        data.open += entry.o
+        data.close += entry.c
+        data.high += entry.h
+        data.low += entry.l
+        data.count += 1
+        exMap.set(timestamp, data)
+
+        if (timestamp > lastTimestampProcessed) {
+          lastTimestampProcessed = timestamp
+        }
       }
-      if (!acc.has(exchangeId)) {
-        acc.set(exchangeId, new Map())
+      return lastTimestampProcessed
+    },
+    async (data, isBaseInterval) => {
+      if (isBaseInterval) {
+        await oiRepo.BaseRepository.save(data)
       }
-      for (const entry of market.history) {
+      return oiRepo.save(data)
+    }
+  )
+}
+
+export async function processLiquidations (params) {
+  const liquidationRepo = new LiquidationRepository(params.db)
+
+  return process(
+    params,
+    liquidationRepo,
+    ({ history, acc, exchangeId, lastSyncTimestamp, lastTimestampProcessed }) => {
+      for (const entry of history) {
+        const timestamp = entry.t
+        if (timestamp <= lastSyncTimestamp) {
+          continue
+        }
+
+        const exMap = acc.get(exchangeId)
+        const data = exMap.get(timestamp) || { longs: 0, shorts: 0 }
+        data.longs += entry.l
+        data.shorts += entry.s
+        exMap.set(timestamp, data)
+
+        if (timestamp > lastTimestampProcessed) {
+          lastTimestampProcessed = timestamp
+        }
+      }
+
+      return lastTimestampProcessed
+    },
+    async (data, isBaseInterval) => {
+      if (isBaseInterval) {
+        await liquidationRepo.BaseRepository.save(data)
+      }
+      return liquidationRepo.save(data)
+    }
+  )
+}
+
+export async function processVolume (params) {
+  const volumeRepo = new VolumeRepository(params.db)
+
+  return process(
+    params,
+    volumeRepo,
+    ({ history, acc, exchangeId, lastSyncTimestamp, lastTimestampProcessed }) => {
+      for (const entry of history) {
         const ts = entry.t
         if (ts <= lastSyncTimestamp) {
           continue
         }
+
         const exMap = acc.get(exchangeId)
-        const ohlc = exMap.get(ts) || {
+        const data = exMap.get(ts) || {
           open: 0,
           high: -Infinity,
           low: Infinity,
@@ -224,48 +206,47 @@ export async function processVolume ({ db, asset, data, interval }) {
           volume: 0,
           count: 0
         }
-        ohlc.open += entry.o
-        ohlc.high = Math.max(entry.h, ohlc.high)
-        ohlc.low = Math.min(entry.l, ohlc.low)
-        ohlc.close += entry.c
-        ohlc.volume += entry.v
-        ohlc.count += 1
-        exMap.set(ts, ohlc)
+        data.open += entry.o
+        data.high = Math.max(entry.h, data.high)
+        data.low = Math.min(entry.l, data.low)
+        data.close += entry.c
+        data.volume += entry.v
+        data.count += 1
+        exMap.set(ts, data)
+
         if (ts > lastTimestampProcessed) {
           lastTimestampProcessed = ts
         }
       }
-    }
-
-    let totalSaved = 0
-    for (const [exchangeId, tsMap] of acc.entries()) {
-      for (const [ts, { open, count, low, high, close, volume }] of tsMap.entries()) {
-        const data = {
-          exchangeId,
-          assetId,
-          intervalId,
-          timestamp: ts,
-          open: open / count,
-          high,
-          low,
-          close: close / count,
-          volume
-        }
-        await volumeRepo.save(data)
-        if (isBaseInterval) {
-          await volumeRepoBase.save(data)
-        }
-        totalSaved++
-      }
-    }
-
-    if (lastTimestampProcessed > lastSyncTimestamp) {
-      await syncVolumeRepo.updateLastTimestamp(
+      return lastTimestampProcessed
+    },
+    async (data, isBaseInterval) => {
+      data = data.map(({
+        exchangeId,
         assetId,
         intervalId,
-        lastTimestampProcessed
-      )
+        timestamp,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        count
+      }) => ({
+        exchangeId,
+        assetId,
+        intervalId,
+        timestamp,
+        open: open / count,
+        high,
+        low,
+        close: close / count,
+        volume
+      }))
+      if (isBaseInterval) {
+        await volumeRepo.BaseRepository.save(data)
+      }
+      return volumeRepo.save(data)
     }
-    return totalSaved
-  })
+  )
 }
