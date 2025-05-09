@@ -24,8 +24,7 @@ DROP VIEW IF EXISTS aggregated_open_interest;
 CREATE TABLE exchanges (
   id TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(3) NOT NULL UNIQUE,
-  name VARCHAR(64) NOT NULL UNIQUE,
-  UNIQUE INDEX idx_exchange_code (code)
+  name VARCHAR(64) NOT NULL UNIQUE
 );
 
 
@@ -359,7 +358,8 @@ BEGIN
 
 
     IF ROW_COUNT() > 0 THEN
-        REPLACE INTO sync_volume (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM volume
+        REPLACE INTO sync_volume (asset_id, interval_id, timestamp) 
+        SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM volume
         WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
     END IF;
 END //
@@ -375,9 +375,9 @@ CREATE PROCEDURE sync_liquidations_intervals(
 )
 BEGIN
 
-    DECLARE v_last_sync_timestamp BIGINT;
+    DECLARE v_last_sync_timestamp BIGINT UNSIGNED;
 
-    DECLARE v_sync_start_timestamp BIGINT;
+    DECLARE v_sync_start_timestamp BIGINT UNSIGNED;
 
 
     SELECT timestamp INTO v_last_sync_timestamp
@@ -420,7 +420,8 @@ BEGIN
 
 
     IF ROW_COUNT() > 0 THEN
-        REPLACE INTO sync_liquidations (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM volume
+        REPLACE INTO sync_liquidations (asset_id, interval_id, timestamp) 
+        SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM volume
         WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
     END IF;
 
@@ -436,9 +437,9 @@ CREATE PROCEDURE sync_open_interest_intervals(
 )
 BEGIN
 
-    DECLARE v_last_sync_timestamp BIGINT;
+    DECLARE v_last_sync_timestamp BIGINT UNSIGNED;
 
-    DECLARE v_sync_start_timestamp BIGINT;
+    DECLARE v_sync_start_timestamp BIGINT UNSIGNED;
 
 
     SELECT timestamp INTO v_last_sync_timestamp
@@ -486,7 +487,8 @@ BEGIN
 
 
     IF ROW_COUNT() > 0 THEN
-        REPLACE INTO sync_open_interest (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM open_interest
+        REPLACE INTO sync_open_interest (asset_id, interval_id, timestamp) 
+        SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM open_interest
         WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
     END IF;
 END //
