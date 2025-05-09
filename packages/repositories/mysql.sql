@@ -1,4 +1,4 @@
-
+DROP TABLE IF EXISTS base_open_interest;
 DROP TABLE IF EXISTS base_volume;
 DROP TABLE IF EXISTS base_liquidations;
 DROP TABLE IF EXISTS volume;
@@ -70,7 +70,11 @@ CREATE TABLE assets (
 
 
 INSERT INTO assets (symbol, name) VALUES
-    ('BTC', 'Bitcoin'), ('ETH', 'Ethereum'), ('SOL', 'Solana'), ('XRP', 'XRP');
+    ('BTC', 'Bitcoin'),
+    ('ETH', 'Ethereum'),
+    ('SOL', 'Solana'),
+    ('XRP', 'XRP'),
+    ('BNB', 'BNB');
 
 
 CREATE TABLE base_open_interest (
@@ -236,13 +240,13 @@ CREATE VIEW aggregated_interval_open_interest AS
 SELECT
     oi.exchange_id,
     oi.asset_id,
-    oi.interval_id,
+    i.id as interval_id,
     i.seconds AS interval_duration_seconds,
     FLOOR(oi.timestamp / i.seconds) * i.seconds AS interval_timestamp,
     SUBSTRING_INDEX(GROUP_CONCAT(oi.open_value ORDER BY oi.timestamp ASC), ',', 1) AS open_value,
     MAX(oi.high_value) AS high_value,
     MIN(oi.low_value) AS low_value,
-    SUBSTRING_INDEX(GROUP_CONCAT(oi.close_value ORDER BY oi.timestamp DESC), ',', 1) AS close_value,
+    SUBSTRING_INDEX(GROUP_CONCAT(oi.close_value ORDER BY oi.timestamp DESC), ',', 1) AS close_value
 FROM base_open_interest oi
 JOIN intervals i ON 1=1
 WHERE i.enabled
@@ -279,8 +283,8 @@ CREATE VIEW aggregated_volume AS
 CREATE VIEW aggregated_open_interest AS
 SELECT
       asset_id,
+      interval_id,
       timestamp,
-      seconds,
       SUM(open_value) AS open,
       SUM(high_value) AS high,
       SUM(low_value) AS low,
@@ -354,10 +358,10 @@ BEGIN
         volume_value = VALUES(volume_value);
 
 
-
-    REPLACE INTO sync_volume (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM volume
-    WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
-
+    IF ROW_COUNT() > 0 THEN
+        REPLACE INTO sync_volume (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM volume
+        WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
+    END IF;
 END //
 
 
@@ -415,9 +419,10 @@ BEGIN
         shorts = VALUES(shorts);
 
 
-
-    REPLACE INTO sync_liquidations (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM volume
-    WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
+    IF ROW_COUNT() > 0 THEN
+        REPLACE INTO sync_liquidations (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM volume
+        WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
+    END IF;
 
 END //
 
@@ -480,10 +485,10 @@ BEGIN
         close_value = VALUES(close_value);
 
 
-
-    REPLACE INTO sync_open_interest (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM open_interest
-    WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
-
+    IF ROW_COUNT() > 0 THEN
+        REPLACE INTO sync_open_interest (asset_id, interval_id, timestamp) SELECT p_asset_id, p_interval_id, IFNULL(MAX(timestamp), 0) FROM open_interest
+        WHERE asset_id = p_asset_id AND interval_id = p_interval_id;
+    END IF;
 END //
 
 

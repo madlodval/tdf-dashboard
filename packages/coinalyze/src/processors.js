@@ -37,7 +37,7 @@ function createExchangeIdCache (exchangeRepo) {
   }
 }
 
-async function process ({ db, data, asset, interval }, mainRepo, processEntry, saveData) {
+async function process ({ db, data, asset, interval, sync }, mainRepo, processEntry, saveData) {
   const assetRepo = new AssetRepository(db)
   const exchangeRepo = new ExchangeRepository(db)
   const intervalRepo = new IntervalRepository(db)
@@ -93,13 +93,15 @@ async function process ({ db, data, asset, interval }, mainRepo, processEntry, s
   }
   if (batch.length) {
     await saveData(batch, isBase)
-    console.log(lastTimestampProcessed, lastSyncTimestamp)
     if (lastTimestampProcessed > lastSyncTimestamp) {
       await syncRepo.updateLastTimestamp(
         assetId,
         intervalId,
         lastTimestampProcessed
       )
+    }
+    if (sync) {
+      await syncRepo.syncFromBase()
     }
   }
   return batch.length

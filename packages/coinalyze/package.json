@@ -19,8 +19,8 @@
   "author": "",
   "license": "ISC",
   "bin": {
-    "tdf-download-coinalyze": "bin/downloader.js",
-    "tdf-import-coinalyze": "bin/importer.js"
+    "tdf-download-clz": "bin/downloader.js",
+    "tdf-import-clz": "bin/importer.js"
   },
   "dependencies": {
     "@tdf/repositories": "workspace:^",

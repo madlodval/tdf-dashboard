@@ -18,7 +18,7 @@ import {
   PriceScaleMode
 } from './utils/charts.js'
 
-import * as echarts from 'echarts';
+import * as echarts from 'echarts'
 
 let priceChart,
   oiChart,
@@ -88,8 +88,9 @@ window.addEventListener('load', () => {
 *   liquidation: Array
 * }>}
 */
-async function loadChartData(symbol, interval) {
-  const apiBase = 'http://localhost:3001';
+async function loadChartData (symbol, interval) {
+  symbol = symbol.toLowerCase()
+  const apiBase = 'http://localhost:3001'
   // 1) Llamadas paralelas
   const [oiRes, ohlcvRes, liqRes] = await Promise.all([
     fetch(`${apiBase}/api/open-interest/${symbol}?interval=${interval}`),
@@ -169,7 +170,7 @@ async function loadChartData(symbol, interval) {
 
 // ------------ fetchAndDraw simplificado ------------
 
-async function fetchAndDraw() {
+async function fetchAndDraw () {
   Loader.show()
   try {
     const { oi, price, volume, liquidation } = await loadChartData(symbol, interval)
@@ -183,7 +184,7 @@ async function fetchAndDraw() {
   }
 }
 
-function decodeLiquidationsCompressed(arr) {
+function decodeLiquidationsCompressed (arr) {
   if (!Array.isArray(arr) || arr.length === 0) return []
   const base = arr[0]
   let t = base
@@ -196,29 +197,30 @@ function decodeLiquidationsCompressed(arr) {
   return result
 }
 
-async function fetchAndRenderOIBarChart(symbol = 'BTC', interval = '1d') {
-  const container = document.getElementById('oi-bar-chart');
-  if (!container) return;
-  container.innerHTML = '';
+async function fetchAndRenderOIBarChart (symbol = 'BTC', interval = '1d') {
+  return
+  const container = document.getElementById('oi-bar-chart')
+  if (!container) return
+  container.innerHTML = ''
 
   try {
-    const apiBase = 'http://localhost:3001';
-    const res = await fetch(`${apiBase}/api/open-interest/latest-by-exchange/${symbol}?interval=${interval}`);
-    if (!res.ok) throw new Error('Error al obtener datos de open interest por exchange');
-    let { labels, values } = await res.json();
+    const apiBase = 'http://localhost:3001'
+    const res = await fetch(`${apiBase}/api/open-interest/latest-by-exchange/${symbol}?interval=${interval}`)
+    if (!res.ok) throw new Error('Error al obtener datos de open interest por exchange')
+    let { labels, values } = await res.json()
     // Ordenar de mayor a menor valor
-    const items = labels.map((label, i) => ({ label, value: values[i] }));
-    items.sort((a, b) => b.value - a.value);
-    labels = items.map(i => i.label);
-    values = items.map(i => i.value);
+    const items = labels.map((label, i) => ({ label, value: values[i] }))
+    items.sort((a, b) => b.value - a.value)
+    labels = items.map(i => i.label)
+    values = items.map(i => i.value)
 
     if (container._echartsInstance) {
-      container._echartsInstance.dispose();
-      container._echartsInstance = null;
+      container._echartsInstance.dispose()
+      container._echartsInstance = null
     }
 
-    const myChart = echarts.init(container);
-    container._echartsInstance = myChart;
+    const myChart = echarts.init(container)
+    container._echartsInstance = myChart
 
     // Opciones de ECharts
     const option = {
@@ -226,7 +228,7 @@ async function fetchAndRenderOIBarChart(symbol = 'BTC', interval = '1d') {
         left: 120,
         right: 40,
         top: 20,
-        bottom: 20,
+        bottom: 20
       },
       xAxis: {
         type: 'value',
@@ -238,8 +240,8 @@ async function fetchAndRenderOIBarChart(symbol = 'BTC', interval = '1d') {
           color: '#222',
           fontWeight: 'bold',
           fontSize: 13,
-          formatter: formatBarValue,
-        },
+          formatter: formatBarValue
+        }
       },
       yAxis: {
         type: 'category',
@@ -250,15 +252,15 @@ async function fetchAndRenderOIBarChart(symbol = 'BTC', interval = '1d') {
           color: '#222',
           fontWeight: 'bold',
           fontSize: 15,
-          overflow: 'truncate',
-        },
+          overflow: 'truncate'
+        }
       },
       series: [{
         type: 'bar',
         data: values,
         barWidth: 10,
         itemStyle: {
-          color: '#bdbdbd',
+          color: '#bdbdbd'
         },
         label: {
           show: true,
@@ -266,33 +268,33 @@ async function fetchAndRenderOIBarChart(symbol = 'BTC', interval = '1d') {
           color: '#222',
           fontWeight: 'bold',
           fontSize: 14,
-          formatter: ({ value }) => formatBarValue(value),
+          formatter: ({ value }) => formatBarValue(value)
         }
       }],
       animation: false,
       tooltip: { show: false },
-      toolbox: { show: false },
-    };
-    myChart.setOption(option);
+      toolbox: { show: false }
+    }
+    myChart.setOption(option)
 
     // Responsivo
     window.addEventListener('resize', () => {
-      myChart.resize();
-    });
+      myChart.resize()
+    })
   } catch (err) {
-    console.error(err);
-    container.innerHTML = '<span class="text-red-500">Error al cargar la gráfica de barras.</span>';
+    console.error(err)
+    container.innerHTML = '<span class="text-red-500">Error al cargar la gráfica de barras.</span>'
   }
 }
 
-function formatBarValue(value) {
+function formatBarValue (value) {
   if (Math.abs(value) >= 1e9) return (value / 1e9).toFixed(2) + 'B'
   if (Math.abs(value) >= 1e6) return (value / 1e6).toFixed(2) + 'M'
   if (Math.abs(value) >= 1e3) return (value / 1e3).toFixed(2) + 'K'
   return value
 }
 
-function renderCharts(oiData, priceData, volumeData, liquidations) {
+function renderCharts (oiData, priceData, volumeData, liquidations) {
   destroyCharts();
 
   // Price
@@ -303,9 +305,9 @@ function renderCharts(oiData, priceData, volumeData, liquidations) {
         // autoScale: true,
         mode: PriceScaleMode.Logarithmic,
         scaleMargins: {
-          top: 0.3,   // 30% de espacio arriba
-          bottom: 0.25, // 25% de espacio abajo
-        },
+          top: 0.3, // 30% de espacio arriba
+          bottom: 0.25 // 25% de espacio abajo
+        }
       },
       timeScale: { ...TIME_OPTIONS, visible: true }
     },
@@ -400,7 +402,7 @@ const Loader = (() => {
   /**
    * Muestra el overlay con el spinner y oculta cualquier error previo.
    */
-  function show() {
+  function show () {
     overlay.classList.remove('opacity-0', 'pointer-events-none')
     overlay.classList.add('opacity-100', 'pointer-events-auto')
     spinner.classList.remove('hidden')
@@ -411,7 +413,7 @@ const Loader = (() => {
    * Oculta el overlay (y el spinner) tras un retraso opcional.
    * @param {number} [delayMs=0] Milisegundos antes de ocultar.
    */
-  function hide(delayMs = 0, errMs = null) {
+  function hide (delayMs = 0, errMs = null) {
     setTimeout(() => {
       overlay.classList.remove('opacity-100', 'pointer-events-auto')
       overlay.classList.add('opacity-0', 'pointer-events-none')
@@ -427,7 +429,7 @@ const Loader = (() => {
    * Muestra un mensaje de error en el overlay.
    * @param {string} message Texto de error a mostrar.
    */
-  function error(message) {
+  function error (message) {
     errElement.textContent = message
     errElement.classList.remove('hidden')
   }
@@ -435,10 +437,10 @@ const Loader = (() => {
   return { show, hide, error }
 })()
 
-function destroyCharts() {
+function destroyCharts () {
   CrosshairSync.reset();
   [priceChart, oiChart, volumeChart, liquidationChart].forEach((ch) => {
-    ch?.remove();
-  });
-  priceChart = oiChart = volumeChart = liquidationChart = null;
+    ch?.remove()
+  })
+  priceChart = oiChart = volumeChart = liquidationChart = null
 }

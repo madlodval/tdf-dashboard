@@ -73,7 +73,7 @@ export class MySQLConnection extends DatabaseConnection {
   async call (procedureName, ...args) {
     try {
       const placeholders = `(${Array(args.length).fill('?').join(', ')})`
-      const sql = `CALL ${this.escape(procedureName)}${placeholders}`
+      const sql = `CALL ${this.quote(procedureName)}${placeholders}`
       return await this.execute(sql, args) // Pasar los argumentos como array
     } catch (err) {
       throw new DatabaseQueryError(`MySQL call failed: ${err.message}`)
@@ -81,12 +81,12 @@ export class MySQLConnection extends DatabaseConnection {
   }
 
   #insertIntoSql (table, columns, select, uniqueKeys) {
-    const quotedCols = columns.map(col => this.escape(col)).join(', ')
+    const quotedCols = columns.map(col => this.quote(col)).join(', ')
     const updateColumns = columns.filter(col => !uniqueKeys.includes(col))
     const quotedUpdateColumns = updateColumns.map(col => {
-      return `${this.escape(col)} = VALUES(${this.escape(col)})`
+      return `${this.quote(col)} = VALUES(${this.quote(col)})`
     }).join(', ')
-    return `INSERT INTO ${this.escape(table)} (${quotedCols}) ${select} ON DUPLICATE KEY UPDATE ${quotedUpdateColumns}`
+    return `INSERT INTO ${this.quote(table)} (${quotedCols}) ${select} ON DUPLICATE KEY UPDATE ${quotedUpdateColumns}`
   }
 
   async replaceInto (table, data, uniqueKeys = []) {

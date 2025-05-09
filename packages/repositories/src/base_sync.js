@@ -28,15 +28,17 @@ export class SyncRepository extends Repository {
     )
   }
 
-  async syncFromBase () {
+  async syncFromBase (assetId = 0) {
     return this.transaction(async (db) => {
       const intervals = await new IntervalRepository(db).findAll()
-      const assets = await new AssetRepository(db).findAllIds()
+      const assets = assetId
+        ? [assetId]
+        : await new AssetRepository(db).findAllIds()
       let totalSynced = 0
       for (const assetId of assets) {
         for (const interval of intervals) {
           const result = await this.call(
-            `sync_${this.tableName}_intervals`, // procedure name
+            `${this.tableName}_intervals`, // procedure name
             assetId,
             interval.id,
             interval.seconds,

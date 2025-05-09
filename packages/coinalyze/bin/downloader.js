@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
-import 'dotenv/config'
 
 import {
   IntervalRepository,
@@ -23,41 +22,43 @@ import { RESOURCE_OI, RESOURCE_LQ, RESOURCE_VL } from '../src/helpers.js'
 
 const RESOURCES = {
   [RESOURCE_OI]: 'getOpenInterestHistory',
-  [RESOURCE_LQ]: 'getLiquidationHistory',
-  [RESOURCE_VL]: 'getOhlcvHistory'
+  [RESOURCE_VL]: 'getOhlcvHistory',
+  [RESOURCE_LQ]: 'getLiquidationHistory'
 }
+
+const CHOICES_RESOURCES = Object.keys(RESOURCES)
 
 const argv = yargs(hideBin(process.argv))
   .option('resource', {
     alias: 'r',
-    type: 'string',
-    description: 'Resource API',
-    choices: Object.keys(RESOURCES),
-    demandOption: true
+    type: 'array',
+    description: 'API resources to download (oi, vl, lq). If not specified, downloads all in order: oi, vl, lq.',
+    choices: CHOICES_RESOURCES,
+    default: CHOICES_RESOURCES
   })
   .option('interval', {
     alias: 'i',
     type: 'string',
-    description: 'Tipo de tiempo',
-    choices: Object.keys(INTERVAL_CONVERT),
-    demandOption: true
+    description: 'Time interval type. If not specified, downloads all active intervals.',
+    choices: Object.keys(INTERVAL_CONVERT)
+    // demandOption: true // Ya no es obligatorio
   })
   .option('asset', {
     alias: 'a',
     type: 'string',
-    description: 'Símbolo del activo (BTC, ETH)',
+    description: 'Asset symbol (BTC, ETH)',
     demandOption: true
   })
   .option('from', {
     alias: 'f',
     type: 'string',
-    description: 'Fecha de inicio (YYYY-MM-DD) o timestamp UNIX de inicio (segundos)'
+    description: 'Start date (YYYY-MM-DD) or UNIX timestamp (seconds)'
 
   })
   .option('to', {
     alias: 't',
     type: 'string',
-    description: 'Fecha de fin (YYYY-MM-DD) o timestamp UNIX de fin (segundos)'
+    description: 'End date (YYYY-MM-DD) or UNIX timestamp (seconds)'
 
   })
   .help()
@@ -69,16 +70,15 @@ const earliestKnownTimestamp = 1420070400 // 2015-01-01
 
 function ensureInterval (time, seconds, isTo = false) {
   const round = isTo ? 'ceil' : 'floor'
-
   return Math[round](time / seconds) * seconds
 }
 
 function getDefaultRange (now, interval) {
-  const maxIntraDayPoints = 2000 // Max 2000
+  const maxIntraDayPoints = 2000
   const intervalDurationInSeconds = INTERVAL_SECONDS[interval] || 0
   const intraDayRangeInSeconds = (
     intervalDurationInSeconds === INTERVAL_SECONDS['1d']
-      ? 90 // 3 MONTH
+      ? 90
       : maxIntraDayPoints
   ) * intervalDurationInSeconds
 
@@ -86,18 +86,13 @@ function getDefaultRange (now, interval) {
   const targetTo = now + intervalDurationInSeconds
 
   const from = ensureInterval(targetFrom, intervalDurationInSeconds)
-
   const to = ensureInterval(targetTo, intervalDurationInSeconds, true)
 
-  return {
-    from,
-    to
-  }
+  return { from, to }
 }
 
 function parseDateOrTimestamp (val, fallback, isEndOfDay = false) {
   if (val === undefined || val === null) return fallback
-
   if (/^\d+$/.test(val)) return parseInt(val, 10)
 
   const d = new Date(val)
@@ -107,23 +102,18 @@ function parseDateOrTimestamp (val, fallback, isEndOfDay = false) {
     } else {
       d.setUTCHours(0, 0, 0, 0)
     }
-
     return ensureInterval(d.getTime(), isEndOfDay)
   }
-
   return fallback
 }
 
 async function getLastSyncTimestampForResource (db, resource, assetId, intervalId) {
   switch (resource) {
     case RESOURCE_OI:
-
       return new OpenInterestRepository(db).SyncRepository.getLastTimestamp(assetId, intervalId)
     case RESOURCE_LQ:
-
       return new LiquidationRepository(db).SyncRepository.getLastTimestamp(assetId, intervalId)
     case RESOURCE_VL:
-
       return new VolumeRepository(db).SyncRepository.getLastTimestamp(assetId, intervalId)
     default:
       console.warn(`Unknown resource type '${resource}' for getting last sync timestamp. Returning 0.`)
@@ -138,110 +128,154 @@ function getSeconds (time) {
   return Math.floor(time / 1000)
 }
 
+function buildDownloadRanges (from, to, intervalName, intervalSeconds, now) {
+  const downloadRanges = []
+  if (from === undefined && to === undefined && intervalSeconds === INTERVAL_SECONDS['1d']) {
+    const currentYear = new Date().getFullYear()
+    const previousYear = currentYear - 1
+    const endOfPreviousYearTimestamp = getSeconds(new Date(`${previousYear}-12-31T23:59:59Z`))
+
+    downloadRanges.push({ from: earliestKnownTimestamp, to: endOfPreviousYearTimestamp })
+
+    const fromCurrentYear = getSeconds(new Date(`${currentYear}-01-01T00:00:00Z`))
+    downloadRanges.push({
+      from: ensureInterval(fromCurrentYear, intervalSeconds),
+      to: ensureInterval(now + intervalSeconds, intervalSeconds, true)
+    })
+  } else {
+    const defaultRange = getDefaultRange(now, intervalName)
+    const finalFrom = parseDateOrTimestamp(from, defaultRange.from, false)
+    const finalTo = parseDateOrTimestamp(to, to === undefined ? defaultRange.to : to, true)
+    downloadRanges.push({ from: finalFrom, to: finalTo })
+  }
+  return downloadRanges
+}
+
+async function downloadResource (db, client, resource, assetId, intervalId, intervalName, intervalSeconds, downloadRanges, assetSymbol, symbols) {
+  const lastSyncTimestamp = await getLastSyncTimestampForResource(db, resource, assetId, intervalId)
+
+  for (const range of downloadRanges) {
+    if (lastSyncTimestamp >= range.to) {
+      continue
+    }
+
+    let currentFrom = range.from
+    if (!IntervalRepository.isDaily(intervalSeconds) && lastSyncTimestamp >= range.from) {
+      currentFrom = lastSyncTimestamp + intervalSeconds
+    }
+
+    if (currentFrom >= range.to) {
+      continue
+    }
+
+    const resourceDir = path.join(baseStorageDir, resource)
+    const assetDir = path.join(resourceDir, assetSymbol.toLowerCase())
+    const intervalDir = path.join(assetDir, intervalName)
+
+    const filename = `${currentFrom}-${range.to}.json`
+    const filePath = path.join(intervalDir, filename)
+
+    if (fs.existsSync(filePath)) {
+      continue
+    }
+
+    const clientMethod = RESOURCES[resource]
+    const currentParams = {
+      asset: assetSymbol.toUpperCase(),
+      interval: INTERVAL_CONVERT[intervalName],
+      from: currentFrom,
+      to: range.to
+    }
+
+    if (resource !== RESOURCE_VL) {
+      currentParams.convertToUsd = true
+    }
+
+    const res = await client[clientMethod]({ symbols, ...currentParams })
+
+    if (!fs.existsSync(intervalDir)) {
+      fs.mkdirSync(intervalDir, { recursive: true })
+    }
+
+    fs.writeFileSync(filePath, JSON.stringify(res), 'utf8')
+  }
+}
+
+async function getIntervalsToDownload (selectedInterval, intervalRepo) {
+  let intervalsToDownload = []
+
+  if (selectedInterval) {
+    const intervalData = await intervalRepo.findByName(selectedInterval)
+    if (!intervalData) {
+      console.error(`Error: Interval not found in database: ${selectedInterval}`)
+      process.exit(1)
+    }
+    if (!intervalData.enabled) {
+      console.error(`Error: Interval not found enabled: ${selectedInterval}`)
+      process.exit(1)
+    }
+    intervalsToDownload.push(intervalData)
+  } else {
+    intervalsToDownload = await intervalRepo.findAllEnabled()
+    if (intervalsToDownload.length === 0) {
+      console.error('Error: No active intervals found in the database.')
+      process.exit(1)
+    }
+  }
+
+  return intervalsToDownload
+}
+
 async function handler () {
-  let db
+  const db = connection()
   try {
-    db = connection()
     await db.connect()
-    const { resource, interval, asset, from, to } = argv
+    const { resource: selectedResources, interval: selectedInterval, asset, from, to } = argv
     const cache = new JsonCache(baseStorageDir, INTERVAL_SECONDS['1d'])
     const client = new Coinalyze(process.env.COINALYZE_API_KEY)
+    const futureMarkets = await cache.remember('future-markets', async () => client.getFutureMarkets())
 
-    const symbols = ['BTCUSD_PERP.A']
+    const _symbols = client.getSymbolForAsset(futureMarkets, asset.toUpperCase())
+
+    console.log(_symbols)
+    // process.exit(1)
+    const symbols = [
+      asset.toUpperCase() + 'USD_PERP.A'
+      // asset.toUpperCase() + 'USDT_PERP.A'
+    ]
 
     const assetRepo = new AssetRepository(db)
     const intervalRepo = new IntervalRepository(db)
+
     const assetId = await assetRepo.findIdBySymbol(asset.toUpperCase())
-    const { id: intervalId, seconds, enabled } = await intervalRepo.findByName(interval)
+
     if (!assetId) {
       console.error(`Error: Asset not found in database: ${asset}`)
       process.exit(1)
     }
-    if (!intervalId) {
-      console.error(`Error: Interval not found in database: ${interval}`)
-      process.exit(1)
-    }
-    if (!enabled) {
-      console.error(`Error: Interval not found enabled: ${interval}`)
-      process.exit(1)
-    }
 
-    const downloadRanges = []
+    const intervalsToDownload = await getIntervalsToDownload(selectedInterval, intervalRepo)
+
     const now = getSeconds(Date.now())
 
-    if (from === undefined && to === undefined && seconds === INTERVAL_SECONDS['1d']) {
-      const currentYear = new Date().getFullYear()
+    for (const intervalData of intervalsToDownload) {
+      const { id: intervalId, name: intervalName, seconds: intervalSeconds } = intervalData
+      const downloadRanges = buildDownloadRanges(from, to, intervalName, intervalSeconds, now)
 
-      const previousYear = currentYear - 1
-      const endOfPreviousYearTimestamp = getSeconds(
-        new Date(`${previousYear}-12-31T23:59:59Z`)
-      )
-
-      downloadRanges.push({
-        from: earliestKnownTimestamp,
-        to: endOfPreviousYearTimestamp
-      })
-
-      const fromCurrentYear = getSeconds(
-        new Date(`${currentYear}-01-01T00:00:00Z`)
-      )
-      downloadRanges.push({
-        from: ensureInterval(fromCurrentYear, seconds),
-        to: ensureInterval(now + seconds, seconds, true)
-      })
-    } else {
-      const defaultRange = getDefaultRange(now, interval)
-      const finalFrom = parseDateOrTimestamp(from, defaultRange.from, false)
-      const finalTo = parseDateOrTimestamp(to, to === undefined ? defaultRange.to : to, true)
-      downloadRanges.push({ from: finalFrom, to: finalTo })
-    }
-
-    const lastSyncTimestamp = await getLastSyncTimestampForResource(db, resource, assetId, intervalId)
-
-    for (const range of downloadRanges) {
-      if (lastSyncTimestamp >= range.to) {
-        console.log(`Skipping download for ${resource} data for ${asset} at ${interval} from ${new Date(range.from * 1000).toISOString()} to ${new Date(range.to * 1000).toISOString()}: Already synchronized.`)
-        continue
+      for (const resource of selectedResources) {
+        await downloadResource(
+          db,
+          client,
+          resource,
+          assetId,
+          intervalId,
+          intervalName,
+          intervalSeconds,
+          downloadRanges,
+          asset,
+          symbols
+        )
       }
-
-      if (!IntervalRepository.isDaily(seconds) && lastSyncTimestamp >= range.from) {
-        range.from = lastSyncTimestamp + seconds
-        console.log(`Adjusting download 'from' date to ${range.from} for ${resource} data for ${asset} at ${interval}.`)
-      }
-
-      const resourceDir = path.join(baseStorageDir, resource)
-      const assetDir = path.join(resourceDir, asset.toLowerCase())
-      const intervalDir = path.join(assetDir, interval)
-
-      const filename = `${range.from}-${range.to}.json`
-      const filePath = path.join(intervalDir, filename)
-
-      if (fs.existsSync(filePath)) {
-        continue
-      }
-
-      const clientMethod = RESOURCES[resource]
-      const currentParams = {
-        asset: asset.toUpperCase(),
-        interval: INTERVAL_CONVERT[interval], // interval in coinalyze
-        from: range.from,
-        to: range.to
-      }
-
-      if (resource !== RESOURCE_VL) {
-        currentParams.convertToUsd = true
-      }
-
-      console.log(`Downloading ${resource} data for ${asset} at ${interval} from ${new Date(range.from * 1000).toISOString()} to ${new Date(range.to * 1000).toISOString()}`)
-
-      const res = await client[clientMethod]({ symbols, ...currentParams })
-
-      if (!fs.existsSync(intervalDir)) {
-        fs.mkdirSync(intervalDir, { recursive: true })
-      }
-
-      fs.writeFileSync(filePath, JSON.stringify(res), 'utf8')
-      console.log(`Data saved to ${filePath}`)
     }
   } catch (error) {
     console.error('-----------------------------------------')

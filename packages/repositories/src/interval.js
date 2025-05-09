@@ -41,7 +41,7 @@ export class IntervalRepository extends Repository {
   }
 
   async findByName (name) {
-    const [rows] = await this.query(`SELECT id, seconds, is_base, enabled FROM ${this.quotedTableName} WHERE name = ?`, [name])
+    const [rows] = await this.query(`SELECT id, name, seconds, is_base, enabled FROM ${this.quotedTableName} WHERE name = ?`, [name])
     if (rows.length === 0) return { id: 0, seconds: 0 }
     return rows[0]
   }
@@ -54,6 +54,15 @@ export class IntervalRepository extends Repository {
 
   async findAll () {
     const [rows] = await this.query(`SELECT id, name, seconds FROM ${this.quotedTableName} WHERE seconds != ? ORDER BY seconds ASC`, [INTERVAL_BASE])
+    return rows.map(row => ({
+      id: +row.id,
+      name: row.name,
+      seconds: +row.seconds
+    }))
+  }
+
+  async findAllEnabled () {
+    const [rows] = await this.query(`SELECT id, name, seconds FROM ${this.quotedTableName} WHERE enabled ORDER BY seconds DESC`)
     return rows.map(row => ({
       id: +row.id,
       name: row.name,

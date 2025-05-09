@@ -132,7 +132,6 @@ export class Coinalyze {
         retries++
         const retryAfter = parseInt(response.headers.get('Retry-After')) || (DELAY / 1000)
         if (retries <= MAX_RETRY) {
-          console.log('RETRY:', retryAfter)
           await new Promise(resolve => setTimeout(resolve, retryAfter * 1000))
           continue
         }

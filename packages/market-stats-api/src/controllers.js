@@ -21,10 +21,10 @@ async function getAssetAndInterval ({ req, res, assetRepository, intervalReposit
 
 // --- Handler para open interest ---
 export const openInterestHandler = ({ assetRepository, openInterestRepository, intervalRepository }) => async (req, res) => {
-  const { assetId, seconds } = await getAssetAndInterval({ req, res, assetRepository, intervalRepository })
-  if (!assetId || !seconds) return
-  console.log('oi', assetId, seconds)
-  const oi = await openInterestRepository.findAllAccumByAssetId(assetId, seconds)
+  const { assetId, intervalId } = await getAssetAndInterval({ req, res, assetRepository, intervalRepository })
+  if (!assetId || !intervalId) return
+  console.log(assetId, intervalId)
+  const oi = await openInterestRepository.findAllAccumByAssetId(assetId, intervalId)
 
   res.status(200).json(
     compressTimeSeries(oi, 'open', 'high', 'low', 'close')

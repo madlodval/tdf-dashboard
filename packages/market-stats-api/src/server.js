@@ -10,30 +10,23 @@ import {
   liquidationsHandler, latestLiquidationsByExchangeHandler
 } from './controllers.js'
 import {
-  DatabaseFactory,
   OpenInterestRepository,
   ExchangeRepository,
   AssetRepository,
   IntervalRepository,
   LiquidationRepository,
-  VolumeRepository
+  VolumeRepository,
+  connection
 } from '@tdf/repositories'
 
 const PORT = process.env.PORT || 3001
-const dbConfig = {
-  connection: process.env.DB_CONNECTION,
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  timezone: process.env.DB_TIMEZONE || 'Z'
-}
+
 const app = express()
 app.use(cors())
 app.use(morgan('dev')) // Logging de requests HTTP
 app.use(express.json())
 
-const db = DatabaseFactory.createConnection(dbConfig)
+const db = connection()
 
 const openInterestRepository = new OpenInterestRepository(db)
 const exchangeRepository = new ExchangeRepository(db)
