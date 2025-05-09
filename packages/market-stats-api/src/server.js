@@ -1,14 +1,11 @@
 import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
-import 'dotenv/config'
-import { connectWithRetry, registerRoutes, setupGracefulShutdown } from './helpers.js'
-import {
-  openInterestHandler,
-  latestOIByExchangeHandler,
-  ohlcvHandler,
-  liquidationsHandler, latestLiquidationsByExchangeHandler
-} from './controllers.js'
+import { config } from './config/index.js'
+import { registerRoutes } from './routes/index.js'
+import { errorHandler } from './middleware/errorHandler.js'
+import { setupGracefulShutdown } from './utils/gracefulShutdown.js'
+import { connectWithRetry } from './utils/database.js'
 import {
   OpenInterestRepository,
   ExchangeRepository,
@@ -19,67 +16,35 @@ import {
   connection
 } from '@tdf/repositories'
 
-const PORT = process.env.PORT || 3001
-
 const app = express()
-app.use(cors())
-app.use(morgan('dev')) // Logging de requests HTTP
+
+// Middleware
+app.use(cors(config.cors))
+app.use(morgan(':method :url :status :response-time ms - :res[content-length]'))
 app.use(express.json())
 
+// Inicialización de repositorios
 const db = connection()
 
-const openInterestRepository = new OpenInterestRepository(db)
-const exchangeRepository = new ExchangeRepository(db)
-const assetRepository = new AssetRepository(db)
-const intervalRepository = new IntervalRepository(db)
-const liquidationRepository = new LiquidationRepository(db)
-const volumeRepository = new VolumeRepository(db)
-
-// Declaración de módulos de rutas
-const modules = [
-  {
-    apiPath: '/api/open-interest',
-    routes: { '/:symbol': openInterestHandler }
-  },
-  {
-    apiPath: '/api/open-interest/latest-by-exchange',
-    routes: {
-      '/:symbol': latestOIByExchangeHandler
-    }
-  },
-  {
-    apiPath: '/api/liquidations',
-    routes: {
-      '/:symbol': liquidationsHandler,
-      '/latest-by-exchange/:symbol': latestLiquidationsByExchangeHandler
-    }
-  },
-  { apiPath: '/api/ohlcv', routes: { '/:symbol': ohlcvHandler } }
-  // { apiPath: '/api/exchanges', routes: { '': exchangesListHandler } }
-  // Agrega aquí más módulos de rutas
-]
-
-// Registro centralizado de rutas
-registerRoutes(app, modules, {
-  assetRepository,
-  openInterestRepository,
-  exchangeRepository,
-  intervalRepository,
-  liquidationRepository,
-  volumeRepository
+// Registro de rutas
+registerRoutes(app, {
+  openInterestRepository: new OpenInterestRepository(db),
+  exchangeRepository: new ExchangeRepository(db),
+  assetRepository: new AssetRepository(db),
+  intervalRepository: new IntervalRepository(db),
+  liquidationRepository: new LiquidationRepository(db),
+  volumeRepository: new VolumeRepository(db)
 })
 
+// Manejo de errores
+app.use(errorHandler)
+
+// Configuración de cierre graceful
 setupGracefulShutdown(db)
 
-app.use((err, req, res, next) => {
-  const statusCode = err.status || 500
-  const message = process.env.NODE_ENV === 'production' ? 'Internal server error.' : err.message
-  console.error('Error en la petición:', err)
-  res.status(statusCode).json({ message })
-})
-
-const server = app.listen(PORT, () => {
-  console.info(`Servidor escuchando en el puerto ${PORT}...`)
+// Inicio del servidor
+const server = app.listen(config.port, () => {
+  console.info(`Servidor escuchando en el puerto ${config.port}...`)
   connectWithRetry(db).catch(() => {
     server.close(() => {
       process.exit(0)
