@@ -1,69 +1,142 @@
 # Coinalyze Data Tools
 
-Este proyecto permite descargar e importar datos de Open Interest y Liquidaciones desde la API de Coinalyze a una base de datos local.
+Herramientas para la integración con Coinalyze, permitiendo la descarga e importación de datos de Open Interest, Volumen y Liquidaciones a una base de datos local.
 
----
+## Características
 
-## Descarga de Open Interest
+- Descarga de datos de Open Interest, Volumen y Liquidaciones
+- Procesamiento y transformación de datos
+- Importación a base de datos MySQL
+- Caché local de datos en formato JSON
+- Soporte para múltiples intervalos de tiempo
+- Sincronización automática de datos
+- Manejo de rangos de fechas personalizados
 
-Script para descargar datos de open interest y guardarlos como JSON para su posterior procesamiento.
-
-### Uso
+## Instalación
 
 ```bash
-node bin/downloader.js \
-  --resource oi \
+pnpm install @tdf/coinalyze
+```
+
+## Uso
+
+### Descarga de Datos
+
+```bash
+pnpm tdf-download-clz \
+  --resource oi vl lq \
   --interval 1day \
-  --symbol BTC
+  --asset BTC \
+  --from 2023-01-01 \
+  --to 2023-12-31
 ```
 
-#### Opciones principales
-- `--resource` (`oi`): Tipo de recurso a descargar. Usa `oi` para open interest o `lq` para liquidaciones.
-- `--interval` (`1day`, `4hour`, etc.): Intervalo de tiempo.
-- `--symbol`: Símbolo del activo (ej. `BTC`).
-- `--exchange` (opcional): Filtra por exchange.
-- `--currency` (opcional): Filtra por moneda.
+#### Opciones del Descargador
 
-Ver todas las opciones:
-```bash
-node bin/downloader.js --help
-```
+| Opción | Descripción | Valores por defecto |
+|--------|-------------|-------------------|
+| `-r, --resource` | Recursos a descargar (oi, vl, lq) | `[oi, vl, lq]` |
+| `-i, --interval` | Intervalo de tiempo | Todos los intervalos activos |
+| `-a, --asset` | Símbolo del activo | Requerido |
+| `-f, --from` | Fecha inicial (YYYY-MM-DD) | Último punto sincronizado |
+| `-t, --to` | Fecha final (YYYY-MM-DD) | Ahora |
 
----
-
-## Importador de Datos
-
-Script para importar archivos JSON descargados a la base de datos.
-
-### Uso
+### Importación de Datos
 
 ```bash
-node bin/importer.js -r oi -s BTC -i 1day
-node bin/importer.js -r lq -s BTC -i 1min
+# Importar datos con sincronización (solo para intervalo base)
+pnpm tdf-import-clz -r oi vl lq -a BTC -i 5m --sync
+
+# Importar datos sin sincronización
+pnpm tdf-import-clz -r oi vl lq -a BTC -i 5m
 ```
 
-#### Opciones principales
-- `-r`, `--resource`: Tipo de recurso (`oi` para open interest, `lq` para liquidaciones).
-- `-s`, `--symbol`: Símbolo del activo.
-- `-i`, `--interval`: Intervalo de tiempo del archivo JSON.
+#### Opciones del Importador
 
-El script buscará el archivo correspondiente en `bin/storage/` y lo importará a la base de datos según el tipo de recurso.
+| Opción | Descripción | Valores por defecto |
+|--------|-------------|-------------------|
+| `-r, --resource` | Recursos a importar (oi, vl, lq) | `[oi, vl, lq]` |
+| `-a, --asset` | Símbolo del activo | Requerido |
+| `-i, --interval` | Intervalo específico | Todos los intervalos |
+| `--sync` | Sincronizar intervalos (solo para intervalo base) | `false` |
 
-### Ejemplo
-```bash
-node bin/importer.js -r oi -s BTC -i 1day
+> **Nota**: El parámetro `--sync` solo debe usarse cuando se importa el intervalo base (5m). Este proceso:
+> 1. Importa los datos del intervalo base (5m)
+> 2. Genera automáticamente los datos para todos los intervalos activos diferentes al base
+> 3. Los intervalos generados se calculan a partir de los datos del intervalo base
+> 4. Este proceso asegura la consistencia de los datos entre diferentes intervalos
+
+## Estructura del Proyecto
+
+```
+coinalyze/
+├── bin/
+│   ├── downloader.js    # Script de descarga
+│   └── importer.js      # Script de importación
+├── src/
+│   ├── client.js        # Cliente API Coinalyze
+│   ├── processors.js    # Procesadores de datos
+│   ├── dataLoader.js    # Cargador de datos
+│   ├── helpers.js       # Utilidades
+│   └── jsonCache.js     # Gestión de caché
+└── package.json
+
+# Directorio de almacenamiento (creado en el directorio de instalación)
+storage/
+├── oi/          # Open Interest
+│   └── btc/     # Datos por activo
+│       └── 1day/ # Datos por intervalo
+├── vl/          # Volumen
+│   └── btc/
+│       └── 1day/
+└── lq/          # Liquidaciones
+    └── btc/
+        └── 1day/
 ```
 
----
+## Configuración
 
-## Estructura de Archivos
+### Variables de Entorno
 
-- `bin/downloader.js`: Descarga datos desde la API de Coinalyzes.
-- `bin/importer.js`: Importa datos JSON a la base de datos.
-- `bin/storage/`: Carpeta donde se guardan los archivos descargados.
+Crea un archivo `.env` en el directorio donde instalaste el proyecto con las siguientes variables:
 
----
+```env
+# API Key de Coinalyze
+COINALYZE_API_KEY=tu_api_key
 
-## Notas
-- Asegúrate de tener configuradas las variables de entorno para la conexión a la base de datos.
-- Consulta el código fuente para detalles sobre el esquema SQL y procesamiento de datos.
+# Configuración de la base de datos
+DB_HOST=localhost
+DB_USER=usuario
+DB_PASSWORD=contraseña
+DB_NAME=base_datos
+```
+
+Ejemplo de estructura de directorios:
+```
+tu-proyecto/
+├── .env                # Archivo de configuración
+├── storage/           # Directorio de almacenamiento
+│   ├── oi/
+│   ├── vl/
+│   └── lq/
+└── node_modules/
+    └── @tdf/
+        └── coinalyze/
+```
+
+## Dependencias
+
+- `@tdf/repositories`: Acceso a la base de datos
+- `dotenv`: Gestión de variables de entorno
+- `yargs`: Parsing de argumentos CLI
+
+
+## Notas de Desarrollo
+
+- Los datos se almacenan en el directorio `storage/` en el directorio donde se ejecuta el comando
+- La estructura de almacenamiento se organiza por recurso/activo/intervalo
+- Se utiliza caché JSON para optimizar las descargas
+- Los procesadores transforman los datos al formato requerido por la base de datos
+- El cliente maneja la autenticación y las peticiones a la API
+- Los archivos JSON se eliminan automáticamente después de ser importados
+- Soporte para sincronización incremental de datos
