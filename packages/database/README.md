@@ -112,13 +112,6 @@ DB_PORT=3306
 - `mysql2`: Cliente MySQL para Node.js
 - `dotenv`: Gestión de variables de entorno
 
-## Scripts Disponibles
-
-```bash
-pnpm run lint    # Linting del código
-pnpm run format  # Formateo del código
-pnpm run build   # Build del proyecto
-```
 
 ## Notas de Desarrollo
 
@@ -129,10 +122,3 @@ pnpm run build   # Build del proyecto
 - Soporta transacciones y operaciones atómicas
 - Implementa el patrón Repository para acceso a datos
 
-## Contribución
-
-1. Fork el repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request 

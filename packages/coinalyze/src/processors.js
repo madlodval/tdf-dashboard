@@ -100,7 +100,7 @@ async function process ({ db, data, asset, interval, sync }, mainRepo, processEn
         lastTimestampProcessed
       )
     }
-    if (sync) {
+    if (isBase && sync) {
       await syncRepo.syncFromBase()
     }
   }
