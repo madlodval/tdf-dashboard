@@ -1,0 +1,86 @@
+header:
+  language: Sprache
+  sign_in: Anmelden
+  supported_languages:
+    en: Englisch
+    es: Spanisch
+    de: Deutsch
+    kr: Koreanisch
+main:
+  market_news: Marktnachrichten
+  close_sidebar: Seitenleiste schließen
+  open_sidebar: Seitenleiste öffnen
+  nav_bar:
+    -
+      title: Tools
+      links:
+        - title: Krypto-Emissionsrate
+          href: "/dashboard/crypto-emission-rate"
+          icon: "crypto-emission-rate"
+          free: true
+        - title: Bitcoin vs Gold
+          href: "/dashboard/bitcoin-vs-gold"
+          icon: "bitcoin-vs-gold"
+          free: true
+        - title: ETF & Unternehmen
+          href: "/dashboard/etf-bitcoin-holders"
+          icon: "etf-companies"
+          free: true
+        - title: Liquidations-Heatmap
+          href: "/dashboard/liquidation-heatmap"
+          icon: "liquidation-heatmap"
+        - title: Liquidations-Profil
+          href: "/dashboard/liquidation-profile"
+          icon: "liquidation-profile"
+        - title: BTC-Lieferantenmodell
+          href: "/dashboard/btc-supplier-model"
+          icon: "btc-supplier-model"
+        - title: TrenDiff-Indikator
+          href: "/dashboard/trendiff"
+          icon: "trendiff-indicator"
+        - title: Hochfrequenz-Chart
+          href: "/dashboard/high-frequency"
+          icon: "high-frequency-chart"
+        - title: Historischer Chart
+          href: "/dashboard/historical-chart"
+          icon: "historical-chart"
+        - title: BitXpander-Plugin
+          href: "/dashboard/bitxpander"
+          icon: "bitxpander-plugin"
+          free: true
+        - title: Risikorechner
+          href: "/dashboard/risk-calculator"
+          icon: "risk-calculator"
+          free: true
+        - title: On Fire Heatmap
+          href: "/dashboard/on-fire-heatmap"
+          icon: "on-fire"
+          free: true
+        - title: On Fire HF
+          href: "/dashboard/on-fire-hf"
+          icon: "on-fire"
+          free: true
+    -
+      title: Akademie
+      links: 
+        - title: Trading-Tutorial
+          href: "/trading-tutorial"
+          icon: "trading-tutorial"
+        - title: Weitere Videos
+          href: "https://www.youtube.com/watch?v=onWRgwfPGZc&list=PL3nolIxKxTdKBxifdzOIJCVNxff2ZtwNh&index=3"
+          icon: "/more-videos"
+        - title: Blog
+          href: "https://medium.com/@tradingdifferent/list/english-da9e717cebf3"
+          icon: "blog"   
+        - title: "Discord"
+          href: "https://discord.gg/CXfnRwXqJc"
+          icon: "discord"
+    -
+      title: Vorteile
+      links:
+        - title: Börsenvorteile
+          href: "/dashboard/benefits"
+          icon: "exchange-benefits"
+        - title: Partnerprogramm
+          href: "/dashboard/affiliates-program"
+          icon: "affiliates-program"

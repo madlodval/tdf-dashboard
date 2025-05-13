@@ -1,0 +1,86 @@
+header:
+  language: 언어
+  sign_in: 로그인
+  supported_languages:
+    en: 영어
+    es: 스페인어
+    de: 독일어
+    kr: 한국어
+main:
+  market_news: 시장 뉴스
+  close_sidebar: 사이드바 닫기
+  open_sidebar: 사이드바 열기
+  nav_bar:
+    -
+      title: 도구
+      links:
+        - title: 암호화폐 발행률
+          href: "/dashboard/crypto-emission-rate"
+          icon: "crypto-emission-rate"
+          free: true
+        - title: 비트코인 vs 골드
+          href: "/dashboard/bitcoin-vs-gold"
+          icon: "bitcoin-vs-gold"
+          free: true
+        - title: ETF 및 기업
+          href: "/dashboard/etf-bitcoin-holders"
+          icon: "etf-companies"
+          free: true
+        - title: 청산 히트맵
+          href: "/dashboard/liquidation-heatmap"
+          icon: "liquidation-heatmap"
+        - title: 청산 프로필
+          href: "/dashboard/liquidation-profile"
+          icon: "liquidation-profile"
+        - title: BTC 공급자 모델
+          href: "/dashboard/btc-supplier-model"
+          icon: "btc-supplier-model"
+        - title: TrenDiff 지표
+          href: "/dashboard/trendiff"
+          icon: "trendiff-indicator"
+        - title: 고주파 차트
+          href: "/dashboard/high-frequency"
+          icon: "high-frequency-chart"
+        - title: 역사적 차트
+          href: "/dashboard/historical-chart"
+          icon: "historical-chart"
+        - title: BitXpander 플러그인
+          href: "/dashboard/bitxpander"
+          icon: "bitxpander-plugin"
+          free: true
+        - title: 리스크 계산기
+          href: "/dashboard/risk-calculator"
+          icon: "risk-calculator"
+          free: true
+        - title: On Fire 히트맵
+          href: "/dashboard/on-fire-heatmap"
+          icon: "on-fire"
+          free: true
+        - title: On Fire HF
+          href: "/dashboard/on-fire-hf"
+          icon: "on-fire"
+          free: true
+    -
+      title: 아카데미
+      links: 
+        - title: 트레이딩 튜토리얼
+          href: "/trading-tutorial"
+          icon: "trading-tutorial"
+        - title: 더 많은 영상
+          href: "https://www.youtube.com/watch?v=onWRgwfPGZc&list=PL3nolIxKxTdKBxifdzOIJCVNxff2ZtwNh&index=3"
+          icon: "/more-videos"
+        - title: 블로그
+          href: "https://medium.com/@tradingdifferent/list/english-da9e717cebf3"
+          icon: "blog"   
+        - title: "Discord"
+          href: "https://discord.gg/CXfnRwXqJc"
+          icon: "discord"
+    -
+      title: 혜택
+      links:
+        - title: 거래소 혜택
+          href: "/dashboard/benefits"
+          icon: "exchange-benefits"
+        - title: 제휴 프로그램
+          href: "/dashboard/affiliates-program"
+          icon: "affiliates-program"

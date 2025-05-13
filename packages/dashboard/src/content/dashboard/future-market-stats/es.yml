@@ -1,0 +1,12 @@
+title: Estadísticas de Mercado
+description: Precio, interest abierto, volumen, liquidaciones prueba
+main:
+  aggregate_stats: Estadísticas Agregadas
+  fullscreen: Pantalla completa
+  download_image: Descargar imagen
+  reset_charts: Resetear gráficos
+  loading: Cargando...
+  price: Precio
+  open_interest: Interest abierto
+  volume: Volumen
+  liquidations: Liquidaciones

@@ -1,0 +1,12 @@
+title: Marktstatistiken
+description: Preis, offenes Interesse, Volumen, Liquidationen Test
+main:
+  aggregate_stats: Gesamtstatistiken
+  fullscreen: Vollbild
+  download_image: Bild herunterladen
+  reset_charts: Diagramme zurücksetzen
+  loading: Wird geladen...
+  price: Preis
+  open_interest: Offenes Interesse
+  volume: Volumen
+  liquidations: Liquidationen

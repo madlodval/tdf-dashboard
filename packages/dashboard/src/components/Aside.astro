@@ -1,0 +1,75 @@
+---
+import SidebarNav from "Components/SidebarNav.astro";
+import SidebarNavItem from "Components/SidebarNavItem.astro";
+import Svg from "Components/Svg.astro";
+const { main } = Astro.locals
+const socialLinks = [
+  {
+    name: "Facebook",
+    href: "https://www.facebook.com/tradingdifferent",
+    className: "h-6 w-6",
+  },
+  {
+    name: "Instagram",
+    href: "https://www.instagram.com/tradingdifferent/",
+    className: "h-5 w-5",
+  },
+  {
+    name: "Twitter",
+    href: "https://twitter.com/tradingdiff",
+    className: "h-5 w-5",
+  },
+  {
+    name: "Youtube",
+    href: "https://www.youtube.com/c/TradingDifferent",
+    className: "h-6 w-6",
+  },
+  {
+    name: "Discord",
+    href: "https://discord.gg/CXfnRwXqJc",
+    className: "h-6 w-6",
+  }
+];
+---
+<div class="flex h-16 shrink-0 items-center">
+  <img
+    class="h-16 w-auto"
+    src="https://tradingdifferent.com/images/td-logo-indigo-orange.svg"
+    alt="Trading Different"
+    title="Trading Different"
+  />
+</div>
+
+<nav class="flex flex-1 flex-col">
+  <ul  class="flex flex-1 flex-col gap-y-4">
+    <li class="space-y-1">
+      <SidebarNavItem 
+        href="/dashboard" 
+          title={main.market_news} 
+          icon="market-news" 
+          iconClass="size-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
+          rounded={false}
+      />
+    </li>
+    {
+      main.nav_bar.map((item) => (
+        <li>
+          <SidebarNav title={item.title} links={item.links} />
+        </li>
+      ))
+    }
+  </ul>
+</nav>
+
+<div class="mt-6 flex justify-center space-x-6">
+  {socialLinks.map((link) => (
+    <a
+      href={link.href}
+      rel="nofollow noopener noreferrer"
+      target="_blank"
+      class="flex items-center justify-center text-gray-400 hover:text-indigo-600"
+    >
+      <Svg src={link.name.toLowerCase()} class={link.className} />
+    </a>
+  ))}
+</div>

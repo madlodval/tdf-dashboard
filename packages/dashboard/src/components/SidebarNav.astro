@@ -1,0 +1,29 @@
+---
+import SidebarNavItem from "Components/SidebarNavItem.astro";
+
+interface Link {
+  href: string;
+  title: string;
+  icon: string;
+  free?: boolean;
+}
+
+const { title, links } = Astro.props;
+---
+<h2
+  class="flex items-center text-xs font-semibold leading-6 text-gray-400"
+>
+  {title}
+</h2>
+<ul>
+  {links.map((link: Link) => (
+    <li class="mt-2 space-y-1">  
+      <SidebarNavItem 
+        href={link.href}
+          title={link.title} 
+          icon={link.icon}
+          isFree={link.free}
+      />
+    </li>
+))}
+</ul>

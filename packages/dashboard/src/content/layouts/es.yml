@@ -1,0 +1,86 @@
+header:
+  language: Idioma
+  sign_in: Iniciar Sesión
+  supported_languages:
+    en: Inglés
+    es: Español
+    de: Alemán
+    kr: Coreano
+main:
+  market_news: Noticias del Mercado
+  close_sidebar: Cerrar barra lateral
+  open_sidebar: Abrir barra lateral
+  nav_bar:
+    -
+      title: Herramientas
+      links:
+        - title: Tasa de Emisión Cripto
+          href: "/dashboard/crypto-emission-rate"
+          icon: "crypto-emission-rate"
+          free: true
+        - title: Bitcoin vs Oro
+          href: "/dashboard/bitcoin-vs-gold"
+          icon: "bitcoin-vs-gold"
+          free: true
+        - title: ETF y Empresas
+          href: "/dashboard/etf-bitcoin-holders"
+          icon: "etf-companies"
+          free: true
+        - title: Mapa de Calor de Liquidaciones
+          href: "/dashboard/liquidation-heatmap"
+          icon: "liquidation-heatmap"
+        - title: Perfil de Liquidaciones
+          href: "/dashboard/liquidation-profile"
+          icon: "liquidation-profile"
+        - title: Modelo de Proveedor BTC
+          href: "/dashboard/btc-supplier-model"
+          icon: "btc-supplier-model"
+        - title: Indicador TrenDiff
+          href: "/dashboard/trendiff"
+          icon: "trendiff-indicator"
+        - title: Gráfico de Alta Frecuencia
+          href: "/dashboard/high-frequency"
+          icon: "high-frequency-chart"
+        - title: Gráfico Histórico
+          href: "/dashboard/historical-chart"
+          icon: "historical-chart"
+        - title: Plugin BitXpander
+          href: "/dashboard/bitxpander"
+          icon: "bitxpander-plugin"
+          free: true
+        - title: Calculadora de Riesgo
+          href: "/dashboard/risk-calculator"
+          icon: "risk-calculator"
+          free: true
+        - title: Mapa de Calor On Fire
+          href: "/dashboard/on-fire-heatmap"
+          icon: "on-fire"
+          free: true
+        - title: On Fire HF
+          href: "/dashboard/on-fire-hf"
+          icon: "on-fire"
+          free: true
+    -
+      title: Academia
+      links: 
+        - title: Tutorial de Trading
+          href: "/trading-tutorial"
+          icon: "trading-tutorial"
+        - title: Más videos
+          href: "https://www.youtube.com/watch?v=onWRgwfPGZc&list=PL3nolIxKxTdKBxifdzOIJCVNxff2ZtwNh&index=3"
+          icon: "/more-videos"
+        - title: Blog
+          href: "https://medium.com/@tradingdifferent/list/english-da9e717cebf3"
+          icon: "blog"   
+        - title: "Discord"
+          href: "https://discord.gg/CXfnRwXqJc"
+          icon: "discord"
+    -
+      title: Beneficios
+      links:
+        - title: Beneficios de Exchange
+          href: "/dashboard/benefits"
+          icon: "exchange-benefits"
+        - title: Programa de Afiliados
+          href: "/dashboard/affiliates-program"
+          icon: "affiliates-program"

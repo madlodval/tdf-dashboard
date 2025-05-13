@@ -1,0 +1,53 @@
+---
+import { map as routes, find } from "../routes";
+
+export function dasherize(str: string) {
+  return str
+    .replace(/([a-z])([A-Z])/g, '$1-$2') // camelCase a camel-Case
+    .replace(/[_\s]+/g, '-')             // guiones bajos y espacios a guion
+    .replace(/-+/g, '-')                 // múltiples guiones a uno solo
+    .replace(/^-+|-+$/g, '')             // elimina guiones al inicio/fin
+    .toLowerCase();
+}
+
+export const pageRoutes = Object.entries(routes).reduce((acc: any[], [path, route]) => {
+  // if (!route.exists) {
+    acc.push({
+      params: { page: path },
+      props: { entryPoint: find(path).entryPoint },
+    });
+  // }
+  return acc;
+}, []);
+
+
+export async function getStaticPaths() {
+  return pageRoutes;
+}
+
+export const pages = Object.entries(
+    import.meta.glob("../components/Pages/**/*.astro", {
+        eager: true,
+        import: 'default'
+    })
+).reduce((acc, [path, callback]) => {
+    let [, url] = path.split("/Pages");
+    url = dasherize(
+        url
+        .replace("/", "")
+        .replace(".html", "")
+        .replace(".astro", "")
+    );
+    acc[url] = callback;
+    return acc;
+}, {} as Record<string, any>);
+
+
+export const prerender =  true;
+
+const { entryPoint } = Astro.props;
+const Page = pages[entryPoint];
+
+---
+
+<Page /> 

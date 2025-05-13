@@ -1,0 +1,16 @@
+---
+import type { Props } from "Components/Img/SVG";
+import { resolve } from "Components/Img/SVG";
+
+const { src, class: className, hidden, label, height, width } = Astro.props;
+
+const content = resolve(src, {
+  height,
+  width,
+  class: className,
+  "aria-hidden": hidden,
+  "aria-label": label,
+});
+---
+
+<Fragment set:html={content} />

@@ -1,0 +1,41 @@
+---
+export interface Props {
+  href: string;
+  title: string;
+  icon: string; // SVG completo como string
+  isFree?: boolean;
+  iconClass?: string;
+  rounded?: boolean;
+}
+
+import Svg from "./Svg.astro";
+
+const { href, title, icon, isFree = false, rounded = true } = Astro.props;
+---
+<a
+  
+    href={href}
+    title={title}
+    class="text-gray-700 hover:text-indigo-600 hover:bg-gray-50 group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold"
+  >
+  {rounded ? (
+    <span
+      class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-[0.625rem] font-medium bg-white group-hover:border-indigo-600 group-hover:text-indigo-600 text-gray-400 border-gray-200"
+    >  
+    <Svg src={icon} class="size-4" />
+    </span>
+
+    <span class="truncate">
+      {title}
+      {isFree && (
+        <span class="px-1.5 py-0.5 text-xs rounded-xl td-bg-orange text-white">
+          Free
+        </span>
+      )}
+    </span>
+
+  ) : (
+    <Svg src={icon} class="size-6 shrink-0 text-gray-400 group-hover:text-indigo-600" /> <Fragment>{title}</Fragment>
+  )}
+</a>
+

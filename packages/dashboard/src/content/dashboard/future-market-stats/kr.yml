@@ -1,0 +1,12 @@
+title: 시장 통계
+description: 가격, 미결제약정, 거래량, 청산 테스트
+main:
+  aggregate_stats: 종합 통계
+  fullscreen: 전체 화면
+  download_image: 이미지 다운로드
+  reset_charts: 차트 초기화
+  loading: 로딩 중...
+  price: 가격
+  open_interest: 미결제약정
+  volume: 거래량
+  liquidations: 청산

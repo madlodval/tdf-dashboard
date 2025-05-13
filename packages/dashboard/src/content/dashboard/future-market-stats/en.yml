@@ -1,0 +1,13 @@
+title: Market Statistics
+description: Price, open interest, volume, liquidations test
+main:
+  aggregate_stats: Aggregate Statistics
+  fullscreen: Fullscreen
+  download_image: Download Image
+  reset_charts: Reset Charts
+  loading: Loading...
+  price: Price
+  open_interest: Open Interest
+  volume: Volume
+  liquidations: Liquidations
+  
