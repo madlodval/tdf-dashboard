@@ -1,1 +1,30 @@
+:root {
+    --td-blue-light: #318aee;
+    --td-blue: #1f7ae0;
+    --td-blue-dark: #034d82;
+    --td-green: #159e49;
+    --td-red: #e74644;
+    --td-grey: #8ea9c1;
+    --td-gray: #8ea9c1;
+    --td-black: #081315;
+    --td-indigo-light: #e4e4fd;
+    --td-indigo: #4b4bbe;
+    --td-indigo-dark: #29297f;
+    --td-orange: #ff6a2b;
+    --td-orange-dark: #f24726
+}
+
+@import '@fontsource-variable/inter';
 @import "tailwindcss";
+
+html {
+    font-family: 'Inter Variable', sans-serif;
+}
+
+.td-bg-orange {
+    background-color: var(--td-orange);
+}
+
+[x-cloak] {
+    display: none !important;
+}

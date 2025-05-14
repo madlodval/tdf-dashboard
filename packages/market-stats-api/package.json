@@ -20,7 +20,7 @@
     "@tdf/repositories": "workspace:^"
   },
   "bin": {
-    "tdf-market-stats-api": "bin/server.js"
+    "tdf-market-stats-start": "bin/server.js"
   },
   "engines": {
     "node": ">=22.14.0"

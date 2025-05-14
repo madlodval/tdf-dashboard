@@ -10,10 +10,18 @@ main:
   market_news: Market News
   close_sidebar: Close sidebar
   open_sidebar: Open sidebar
+  free: Free
+  pricing: Pricing
+  glossary: Glossary
+  contact_us: Contact
   nav_bar:
     -
       title: Tools
       links:
+        - title: Future Market Stats
+          href: "/dashboard/future-market-stats"
+          icon: arow-trending-up
+          free: true
         - title: Crypto Emission Rate
           href: "/dashboard/crypto-emission-rate"
           icon: "crypto-emission-rate"

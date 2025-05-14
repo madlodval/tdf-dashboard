@@ -10,10 +10,18 @@ main:
   market_news: Marktnachrichten
   close_sidebar: Seitenleiste schließen
   open_sidebar: Seitenleiste öffnen
+  free: Kostenlos
+  pricing: Preise
+  glossary: Glossar
+  contact_us: Kontakt
   nav_bar:
     -
       title: Tools
       links:
+        - title: Zukünftige Marktstatistiken
+          href: "/dashboard/future-market-stats"
+          icon: "arrow-trending-up"
+          free: true
         - title: Krypto-Emissionsrate
           href: "/dashboard/crypto-emission-rate"
           icon: "crypto-emission-rate"

@@ -31,6 +31,7 @@ let priceChart,
   shortsSeries
 let symbol = 'BTC'
 let interval = '1d'
+let currency = 'USD'
 
 document.addEventListener('symbol-changed', e => {
   symbol = e.detail
@@ -294,19 +295,72 @@ function formatBarValue (value) {
   return value
 }
 
+/**
+ * Convierte un valor de USD a la moneda base del activo usando el precio histórico.
+ * @param {number} value Valor en USD
+ * @param {number} price Precio del activo en USD en ese timestamp
+ * @param {string} currency 'USD' o 'BASE'
+ * @returns {number}
+ */
+function convertValue(value, price, currency) {
+  if (currency === 'BASE' && price > 0) {
+    return value / price;
+  }
+  return value; // USD por defecto
+}
+
 function renderCharts (oiData, priceData, volumeData, liquidations) {
   destroyCharts();
+
+  // Sincronizar los datos de precio por timestamp para acceso rápido
+  const priceByTime = Object.fromEntries(priceData.map(p => [p.time, p]));
+
+  // Inicializa los datos convertidos como los originales
+  let oiConverted = oiData;
+  let volumeConverted = volumeData;
+  let liquidationConverted = liquidations;
+
+  // Solo convierte si la moneda es BASE
+  if (currency === 'BASE') {
+    oiConverted = oiData.map(oi => {
+      const price = priceByTime[oi.time]?.close || 0;
+      return {
+        open: price > 0 ? oi.open / price : oi.open,
+        high: price > 0 ? oi.high / price : oi.high,
+        low: price > 0 ? oi.low / price : oi.low,
+        close: price > 0 ? oi.close / price : oi.close
+      };
+    });
+
+    volumeConverted = volumeData.map(vol => {
+      const price = priceByTime[vol.time]?.close || 0;
+      return {
+        open: price > 0 ? vol.open / price : vol.open,
+        high: price > 0 ? vol.high / price : vol.high,
+        low: price > 0 ? vol.low / price : vol.low,
+        close: price > 0 ? vol.close / price : vol.close,
+        value: price > 0 ? vol.value / price : vol.value
+      };
+    });
+
+    liquidationConverted = liquidations.map(lq => {
+      const price = priceByTime[lq.time]?.close || 0;
+      return {
+        longs: price > 0 ? lq.longs / price : lq.longs,
+        shorts: price > 0 ? lq.shorts / price : lq.shorts
+      };
+    });
+  }
 
   // Price
   ({ chart: priceChart, series: [priceSeries] } = renderChart('price-chart', {
     options: {
       rightPriceScale: {
         ...VALUE_OPTIONS.rightPriceScale,
-        // autoScale: true,
         mode: PriceScaleMode.Logarithmic,
         scaleMargins: {
-          top: 0.3, // 30% de espacio arriba
-          bottom: 0.25 // 25% de espacio abajo
+          top: 0.3,
+          bottom: 0.25
         }
       },
       timeScale: { ...TIME_OPTIONS, visible: true }
@@ -324,7 +378,7 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
     series: [{
       type: CandlestickSeries,
       options: { priceLineVisible: false },
-      data: oiData
+      data: oiConverted
     }]
   }));
 
@@ -340,7 +394,7 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
         priceScaleId: 'right',
         priceLineVisible: false
       },
-      data: volumeData
+      data: volumeConverted
     }]
   }));
 
@@ -360,7 +414,7 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
           priceScaleId: 'right',
           priceLineVisible: false
         },
-        data: liquidations
+        data: liquidationConverted
           .slice().sort((a, b) => a.time - b.time)
           .map(d => ({ time: d.time, value: d.longs }))
       },
@@ -373,7 +427,7 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
           priceScaleId: 'right',
           priceLineVisible: false
         },
-        data: liquidations
+        data: liquidationConverted
           .slice().sort((a, b) => a.time - b.time)
           .map(d => ({ time: d.time, value: -Math.abs(d.shorts) }))
       }
@@ -381,12 +435,10 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
   }))
 
   TimeScaleSync.register(priceChart, oiChart, volumeChart, liquidationChart)
-
   CrosshairSync.register(priceChart, priceSeries)
   CrosshairSync.register(oiChart, oiSeries)
   CrosshairSync.register(volumeChart, volumeSeries)
   CrosshairSync.register(liquidationChart, longsSeries, shortsSeries)
-
   PriceScaleSync.register(priceChart, oiChart, volumeChart, liquidationChart)
 }
 

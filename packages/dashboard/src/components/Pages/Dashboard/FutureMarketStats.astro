@@ -1,249 +1,192 @@
 ---
 import ChartCard from "Components/ChartCard.astro";
-import DasboardLayout from "Layouts/default.astro";
-import openInterestScript from "Scripts/open-interest.js?url";
-const { main, title, description } = Astro.locals;
+import Svg from "Components/Svg.astro";
+
+const { main, description } = Astro.locals;
 ---
 
-<DasboardLayout title={title} description={description}>
-  <Fragment slot="head">
-    <style is:global>
-      a[href*="tradingview"] > svg {
-        display: none !important;
-      }
-    </style>
-  </Fragment>
-  <div class="flex items-center">
-    <h1
-      class="flex-1 text-2xl font-extrabold text-gray-900 tracking-tight sm:text-3xl"
-    >
-      {main.aggregate_stats}
-    </h1>
-  </div>
-  <p class="mt-6 text-base text-gray-500">
-    {description}
-  </p>
-  <section class="mt-6 space-y-12 relative">
-    <ChartCard class="space-y-6">
-      <!-- Barra superior tipo TradingView -->
-      <div
-        class="bg-white px-4 py-2 flex items-center justify-between border-b border-gray-200"
-      >
-        <div class="flex items-center gap-3">
-          <!-- Dropdown para símbolo -->
-          <div
-            x-data="{ open: false, symbols: ['BTC', 'ETH', 'XRP', 'BNB', 'SOL'], selected: 'BTC' }"
-            class="relative"
-          >
-            <button
-              @click="open = !open"
-              class="p-2.5 text-sm font-semibold leading-6 text-gray-900 bg-white rounded-md shadow-none hover:bg-gray-50 focus:outline-none flex items-center"
-              type="button"
-            >
-              <span x-text="selected"></span>
-              <svg class="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
-              </svg>
-            </button>
-            <div
-              x-show="open"
-              @click.outside="open = false"
-              class="absolute left-0 z-50 mt-2.5 w-40 origin-top-left rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none"
-            >
-              <template x-for="s in symbols" :key="s">
-                <button
-                  @click="selected = s; open = false; $dispatch('symbol-changed', s)"
-                  class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50 transition"
-                >
-                  <span x-text="s"></span>
-                </button>
-              </template>
-            </div>
-          </div>
-          <!-- Dropdown para intervalos (sin label) -->
-          <div
-            x-data="{ open: false, intervals: ['1d', '4h', '1h'], selected: '1d' }"
-            class="relative ml-2"
-          >
-            <button
-              @click="open = !open"
-              class="p-2.5 text-sm font-semibold leading-6 text-gray-900 bg-white rounded-md shadow-none hover:bg-gray-50 focus:outline-none flex items-center"
-              type="button"
-            >
-              <span x-text="selected"></span>
-              <svg class="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
-              </svg>
-            </button>
-            <div
-              x-show="open"
-              @click.outside="open = false"
-              class="absolute left-0 z-50 mt-2.5 w-32 origin-top-left rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none"
-            >
-              <template x-for="i in intervals" :key="i">
-                <button
-                  @click="selected = i; open = false; $dispatch('interval-changed', i)"
-                  class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50 transition"
-                >
-                  <span x-text="i"></span>
-                </button>
-              </template>
-            </div>
-          </div>
-        </div>
-        <div class="flex items-center gap-4">
-          <!-- Botones de acciones (incluye fullscreen/reset) -->
-          <div class="flex items-center gap-2 ml-4">
-            <!-- Fullscreen Icon -->
-            <button
-              id="fullscreen-btn"
-              class="hover:bg-blue-50 p-2 rounded transition"
-              title={main.fullscreen}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 28 28"
-                width="28"
-                height="28"
-                ><path
-                  fill="currentColor"
-                  d="M8.5 6A2.5 2.5 0 0 0 6 8.5V11h1V8.5C7 7.67 7.67 7 8.5 7H11V6H8.5zM6 17v2.5A2.5 2.5 0 0 0 8.5 22H11v-1H8.5A1.5 1.5 0 0 1 7 19.5V17H6zM19.5 7H17V6h2.5A2.5 2.5 0 0 1 22 8.5V11h-1V8.5c0-.83-.67-1.5-1.5-1.5zM22 19.5V17h-1v2.5c0 .83-.67 1.5-1.5 1.5H17v1h2.5a2.5 2.5 0 0 0 2.5-2.5z"
-                ></path></svg
-              >
-            </button>
-            <!-- Camera Icon -->
-            <button
-              id="screenshot-btn"
-              class="hover:bg-blue-50 p-2 rounded transition"
-              title={main.download_image}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="28"
-                height="28"
-                fill="currentColor"
-                ><path
-                  fill-rule="evenodd"
-                  clip-rule="evenodd"
-                  d="M11.118 6a.5.5 0 0 0-.447.276L9.809 8H5.5A1.5 1.5 0 0 0 4 9.5v10A1.5 1.5 0 0 0 5.5 21h16a1.5 1.5 0 0 0 1.5-1.5v-10A1.5 1.5 0 0 0 21.5 8h-4.309l-.862-1.724A.5.5 0 0 0 15.882 6h-4.764zm-1.342-.17A1.5 1.5 0 0 1 11.118 5h4.764a1.5 1.5 0 0 1 1.342.83L17.809 7H21.5A2.5 2.5 0 0 1 24 9.5v10a2.5 2.5 0 0 1-2.5 2.5h-16A2.5 2.5 0 0 1 3 19.5v-10A2.5 2.5 0 0 1 5.5 7h3.691l.585-1.17z"
-                ></path><path
-                  fill-rule="evenodd"
-                  clip-rule="evenodd"
-                  d="M13.5 18a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm0 1a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z"
-                ></path></svg
-              >
-            </button>
-            <!-- Botón reset gráficos -->
-            <button
-              id="reset-charts-btn"
-              title={main.reset_charts}
-              class="p-1 rounded hover:bg-gray-100"
-            >
-              <!-- Icono de reset estilo TradingView -->
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M16.95 7.05A7 7 0 1 0 10 17"
-                  stroke="currentColor"
-                  stroke-width="1"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"></path>
-                <path
-                  d="M17 3v4h-4"
-                  stroke="currentColor"
-                  stroke-width="1"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="relative h-full mt-6">
-        <div
-          id="loading-overlay"
-          class="absolute inset-0 flex items-center justify-center bg-white/80 z-50 opacity-0 pointer-events-none transition-opacity duration-500"
-        >
-          <div class="flex flex-col items-center">
-            <div id="loading-spinner" class="flex flex-col items-center">
-              <svg
-                class="animate-spin h-8 w-8 text-blue-600 mb-2"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"></circle>
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8z"></path>
-              </svg>
-              <span class="text-blue-700 font-semibold">{main.loading}</span>
-            </div>
-            <span
-              id="loading-error"
-              class="hidden text-red-500 font-semibold text-center mt-2"></span>
-          </div>
-        </div>
-        <!-- Precio -->
-        <div class="bg-white relative">
-          <div class="flex flex-col md:flex-row gap-8">
-            <div class="flex-1 overflow-hidden px-4">
-              <div class="relative">
-                <div
-                  class="flex justify-between items-center mb-1 relative mt-4"
-                >
-                  <span class="text-sm"> {main.price} </span>
-                </div>
-                <div id="price-chart" class="min-h-[300px]"></div>
-                <div class="border-b border-gray-100 w-full"></div>
-              </div>
-              <div class="relative">
-                <div
-                  class="flex justify-between items-center mb-1 relative mt-4"
-                >
-                  <span class="text-sm"> {main.open_interest} </span>
-                </div>
-                <div id="oi-chart" class="min-h-[200px]"></div>
-                <div class="border-b border-gray-100 w-full"></div>
-              </div>
-              <div class="relative">
-                <div
-                  class="flex justify-between items-center mb-1 relative mt-4"
-                >
-                  <span class="text-sm"> {main.volume} </span>
-                </div>
-                <div id="volume-chart" class="min-h-[200px]"></div>
-              </div>
-              <div class="relative">
-                <div
-                  class="flex justify-between items-center mb-1 relative mt-4"
-                >
-                  <span class="text-sm"> {main.liquidations} </span>
-                </div>
-                <div id="liquidation-chart" class="min-h-[200px]"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div id="charts-resizer" class="border-b border-gray-100 resize hidden">
-        </div>
-      </div>
-    </ChartCard>
-  </section>
+<Fragment slot="head">
+  <style is:global>
+    a[href*="tradingview"] > svg {
+      display: none !important;
+    }
+  </style>
+</Fragment>
 
-  <div id="oi-bar-chart" class="bg-white rounded shadow p-4 mt-6 h-[300px]">
-  </div>
-  <script type="module" src={openInterestScript} defer></script>
-</DasboardLayout>
+<Fragment slot="foot">
+  <script>import 'Scripts/open-interest.js';</script>
+</Fragment>
+
+<div class="flex items-center">
+  <h1
+    class="flex-1 text-2xl font-extrabold text-gray-900 tracking-tight sm:text-3xl"
+  >
+    {main.aggregate_stats}
+  </h1>
+</div>
+<p class="mt-6 text-base text-gray-500">
+  {description}
+</p>
+<section class="mt-6 space-y-12 relative">
+  <ChartCard class="space-y-6">
+    <!-- Barra superior tipo TradingView -->
+    <div
+      class="bg-white px-4 py-2 flex items-center justify-between border-b border-gray-200"
+    >
+      <div class="flex items-center gap-3">
+        <!-- Dropdown para símbolo -->
+        <div
+          x-data="{ open: false, symbols: ['BTC', 'ETH', 'XRP', 'BNB', 'SOL'], selected: 'BTC' }"
+          class="relative"
+          x-cloak  >
+          <button
+            @click="open = !open"
+            class="p-2.5 text-sm font-semibold leading-6 text-gray-900 bg-white rounded-md shadow-none hover:bg-gray-50 focus:outline-none flex items-center"
+            type="button"
+          >
+            <span x-text="selected"></span>
+            <svg class="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <div
+            x-show="open"
+            @click.outside="open = false"
+            class="absolute left-0 z-50 mt-2.5 w-40 origin-top-left rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none"
+          >
+            <template x-for="s in symbols" :key="s">
+              <button
+                @click="selected = s; open = false; $dispatch('symbol-changed', s)"
+                class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50 transition"
+              >
+                <span x-text="s"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+        <!-- Dropdown para intervalos (sin label) -->
+        <div
+          x-data="{ open: false, intervals: ['1d', '4h', '1h'], selected: '1d' }"
+          class="relative ml-2"
+          x-cloak  >
+          <button
+            @click="open = !open"
+            class="p-2.5 text-sm font-semibold leading-6 text-gray-900 bg-white rounded-md shadow-none hover:bg-gray-50 focus:outline-none flex items-center"
+            type="button"
+          >
+            <span x-text="selected"></span>
+            <svg class="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <div
+            x-show="open"
+            @click.outside="open = false"
+            class="absolute left-0 z-50 mt-2.5 w-32 origin-top-left rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none"
+          >
+            <template x-for="i in intervals" :key="i">
+              <button
+                @click="selected = i; open = false; $dispatch('interval-changed', i)"
+                class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50 transition"
+              >
+                <span x-text="i"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <!-- Botones de acciones (incluye fullscreen/reset) -->
+        <div class="flex items-center gap-2 ml-4">
+          <!-- Fullscreen Icon -->
+          <button
+            id="fullscreen-btn"
+            class="hover:bg-blue-50 p-2 rounded transition"
+            title={main.fullscreen}
+          >
+            <Svg src="fullscreen" />
+          </button>
+          <!-- Camera Icon -->
+          <button
+            id="screenshot-btn"
+            class="hover:bg-blue-50 p-2 rounded transition"
+            title={main.download_image}
+          >
+            <Svg src="camera" />
+        </button>
+          <!-- Botón reset gráficos -->
+          <button
+            id="reset-charts-btn"
+            title={main.reset_charts}
+            class="p-1 rounded hover:bg-gray-100"
+          >
+            <!-- Icono de reset estilo TradingView -->
+            <Svg src="reset" />
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="relative h-full mt-6">
+      <div
+        id="loading-overlay"
+        class="absolute inset-0 flex items-center justify-center bg-white/80 z-50 opacity-0 pointer-events-none transition-opacity duration-500"
+      >
+        <div class="flex flex-col items-center">
+          <div id="loading-spinner" class="flex flex-col items-center">
+            <Svg src="loading" />
+            <span class="text-blue-700 font-semibold">{main.loading}</span>
+          </div>
+          <span
+            id="loading-error"
+            class="hidden text-red-500 font-semibold text-center mt-2"></span>
+        </div>
+      </div>
+      <!-- Precio -->
+      <div class="bg-white relative">
+        <div class="flex flex-col md:flex-row gap-8">
+          <div class="flex-1 overflow-hidden px-4">
+            <div class="relative">
+              <div
+                class="flex justify-between items-center mb-1 relative mt-4"
+              >
+                <span class="text-sm"> {main.price} </span>
+              </div>
+              <div id="price-chart" class="min-h-[300px]"></div>
+              <div class="border-b border-gray-100 w-full"></div>
+            </div>
+            <div class="relative">
+              <div
+                class="flex justify-between items-center mb-1 relative mt-4"
+              >
+                <span class="text-sm"> {main.open_interest} </span>
+              </div>
+              <div id="oi-chart" class="min-h-[200px]"></div>
+              <div class="border-b border-gray-100 w-full"></div>
+            </div>
+            <div class="relative">
+              <div
+                class="flex justify-between items-center mb-1 relative mt-4"
+              >
+                <span class="text-sm"> {main.volume} </span>
+              </div>
+              <div id="volume-chart" class="min-h-[200px]"></div>
+            </div>
+            <div class="relative">
+              <div
+                class="flex justify-between items-center mb-1 relative mt-4"
+              >
+                <span class="text-sm"> {main.liquidations} </span>
+              </div>
+              <div id="liquidation-chart" class="min-h-[200px]"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="charts-resizer" class="border-b border-gray-100 resize hidden">
+      </div>
+    </div>
+  </ChartCard>
+</section>
+
+<div id="oi-bar-chart" class="bg-white rounded shadow p-4 mt-6 h-[300px]">
+</div>

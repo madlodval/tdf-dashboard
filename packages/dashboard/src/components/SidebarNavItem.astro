@@ -9,6 +9,7 @@ export interface Props {
 }
 
 import Svg from "./Svg.astro";
+const { main } = Astro.locals;
 
 const { href, title, icon, isFree = false, rounded = true } = Astro.props;
 ---
@@ -29,7 +30,7 @@ const { href, title, icon, isFree = false, rounded = true } = Astro.props;
       {title}
       {isFree && (
         <span class="px-1.5 py-0.5 text-xs rounded-xl td-bg-orange text-white">
-          Free
+          {main.free}
         </span>
       )}
     </span>

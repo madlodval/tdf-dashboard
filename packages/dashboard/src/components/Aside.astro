@@ -42,12 +42,11 @@ const socialLinks = [
 
 <nav class="flex flex-1 flex-col">
   <ul  class="flex flex-1 flex-col gap-y-4">
-    <li class="space-y-1">
+    <li>
       <SidebarNavItem 
         href="/dashboard" 
           title={main.market_news} 
           icon="market-news" 
-          iconClass="size-6 shrink-0 text-gray-400 group-hover:text-indigo-600"
           rounded={false}
       />
     </li>
@@ -58,6 +57,30 @@ const socialLinks = [
         </li>
       ))
     }
+    <li>
+      <SidebarNavItem 
+        href="/dashboard/pricing" 
+          title={main.pricing} 
+          icon="pricing" 
+          rounded={false}
+      />
+    </li>    
+    <li>
+      <SidebarNavItem 
+        href="/dashboard/glossary" 
+          title={main.glossary} 
+          icon="glossary" 
+          rounded={false}
+      />
+    </li>
+    <li>
+      <SidebarNavItem 
+        href="/dashboard/contact-us" 
+          title={main.contact_us} 
+          icon="contact-us" 
+          rounded={false}
+      />
+    </li>
   </ul>
 </nav>
 

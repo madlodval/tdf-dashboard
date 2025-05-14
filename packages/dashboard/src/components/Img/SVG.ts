@@ -75,11 +75,22 @@ export function resolve(
   let replace = search;
   for (const [key, value] of Object.entries(attrs)) {
     if (value !== undefined) {
-      replace = replaceString(
-        replace,
-        new RegExp(` ${key}="([^"]+)"`, "g"),
-        ` ${key}="${value}"`
-      );
+      let match = null;
+      if (key === 'class') {
+        const classRegex = new RegExp(` ${key}="([^"]+)"`, "g");
+         match = classRegex.exec(replace);
+        if (match) {
+          const existingClass = match[1];
+          replace = replace.replace(classRegex, ` ${key}="${existingClass} ${value}"`);
+        }
+      }
+      if (!match) {
+        replace = replaceString(
+          replace,
+          new RegExp(` ${key}="([^"]+)"`, "g"),
+          ` ${key}="${value}"`
+        );
+      }
     }
   }
   const content = svg.replace(search, replace);

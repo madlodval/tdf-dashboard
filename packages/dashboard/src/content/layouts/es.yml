@@ -10,11 +10,19 @@ main:
   market_news: Noticias del Mercado
   close_sidebar: Cerrar barra lateral
   open_sidebar: Abrir barra lateral
+  free: Gratis
+  pricing: Precios
+  glossary: Glosario
+  contact_us: Contacto
   nav_bar:
     -
       title: Herramientas
       links:
-        - title: Tasa de Emisión Cripto
+        - title: Estadísticas del Mercado Futuro
+          href: "/dashboard/future-market-stats"
+          icon: "arrow-trending-up"
+          free: true
+        - title: Tasa de Emisión Crypto
           href: "/dashboard/crypto-emission-rate"
           icon: "crypto-emission-rate"
           free: true
@@ -22,17 +30,17 @@ main:
           href: "/dashboard/bitcoin-vs-gold"
           icon: "bitcoin-vs-gold"
           free: true
-        - title: ETF y Empresas
+        - title: ETF y Compañías
           href: "/dashboard/etf-bitcoin-holders"
           icon: "etf-companies"
           free: true
-        - title: Mapa de Calor de Liquidaciones
+        - title: Mapa de Liquidaciones
           href: "/dashboard/liquidation-heatmap"
           icon: "liquidation-heatmap"
         - title: Perfil de Liquidaciones
           href: "/dashboard/liquidation-profile"
           icon: "liquidation-profile"
-        - title: Modelo de Proveedor BTC
+        - title: BTC Supplier Model
           href: "/dashboard/btc-supplier-model"
           icon: "btc-supplier-model"
         - title: Indicador TrenDiff
@@ -41,7 +49,7 @@ main:
         - title: Gráfico de Alta Frecuencia
           href: "/dashboard/high-frequency"
           icon: "high-frequency-chart"
-        - title: Gráfico Histórico
+        - title: Gráfico Histórica
           href: "/dashboard/historical-chart"
           icon: "historical-chart"
         - title: Plugin BitXpander
@@ -63,7 +71,7 @@ main:
     -
       title: Academia
       links: 
-        - title: Tutorial de Trading
+        - title: Instructivo de Trading
           href: "/trading-tutorial"
           icon: "trading-tutorial"
         - title: Más videos

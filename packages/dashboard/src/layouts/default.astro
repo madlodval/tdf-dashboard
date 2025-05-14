@@ -4,8 +4,14 @@ export interface Props {
   title?: string;
   description?: string;
 }
-import "../assets/styles/global.css";
+import styles from "Styles/global.css?url";
 import Aside from "Components/Aside.astro";
+import appleTouchIcon from "Images/favicons/apple-touch-icon.png?url";
+import favicon32 from "Images/favicons/favicon-32x32.png?url";
+import favicon16 from "Images/favicons/favicon-16x16.png?url";
+import safariPinned from "Images/favicons/safari-pinned-tab.svg?url";
+import favicon from "Images/favicons/favicon.ico?url";
+
 const {
   title = "Your Default Title",
   description = "Your Default Description",
@@ -30,6 +36,15 @@ const pathWithoutLang = pathWithoutBase.replace(
   new RegExp(`^(${supportedLangs})\\/`),
   "",
 );
+
+// Favicons paths
+const favicons = {
+  appleTouch: appleTouchIcon,
+  favicon32,
+  favicon16,
+  safariPinned,
+  favicon
+};
 ---
 
 <!doctype html>
@@ -41,49 +56,32 @@ const pathWithoutLang = pathWithoutBase.replace(
     <title>{title}</title>
     <meta name="description" content={description} />
 
+    <!-- Facebook Domain Verification -->
+    <meta name="facebook-domain-verification"
+    content="dtpasml1jzf93d810gay7p0ur06cdg"/>
+    <!-- Google Site Verification -->
+    <meta name="google-site-verification"
+        content="jFieajwhO9cK2yw5-HxVmZvmmlSxaUzHHkAaup9sJsw"/>
+    <meta name="google-site-verification"
+        content="gjwJy8yLE7542hS1mShvo1ELXkNNpLPzGrRSt-5Tgjc" />
+    <meta name="google-site-verification"
+        content="ad8UWxheq1O6ysqyIBfAZIgqrpZ_MUqxsFz8GVavCwM" />
+
+    <!-- Favicons -->
+    <link rel="apple-touch-icon" sizes="180x180" href={favicons.appleTouch}>
+    <link rel="icon" type="image/png" sizes="32x32" href={favicons.favicon32}>
+    <link rel="icon" type="image/png" sizes="16x16" href={favicons.favicon16}>
+    <link rel="mask-icon" href={favicons.safariPinned} color="#4b4bbe">
+    <link rel="shortcut icon" href={favicons.favicon}>
+
+    <meta name="msapplication-TileColor" content="#4b4bbe">
+    <meta name="theme-color" content="#4b4bbe">
+
+    <link rel="stylesheet" href={styles} />
+
     <slot name="head" />
 
-    <style is:inline>
-      [wire\:loading],
-      [wire\:loading\.delay],
-      [wire\:loading\.inline-block],
-      [wire\:loading\.inline],
-      [wire\:loading\.block],
-      [wire\:loading\.flex],
-      [wire\:loading\.table],
-      [wire\:loading\.grid],
-      [wire\:loading\.inline-flex] {
-        display: none;
-      }
-      [wire\:loading\.delay\.shortest],
-      [wire\:loading\.delay\.shorter],
-      [wire\:loading\.delay\.short],
-      [wire\:loading\.delay\.long],
-      [wire\:loading\.delay\.longer],
-      [wire\:loading\.delay\.longest] {
-        display: none;
-      }
-      [wire\:offline] {
-        display: none;
-      }
-      [wire\:dirty]:not(textarea):not(input):not(select) {
-        display: none;
-      }
-      input:-webkit-autofill,
-      select:-webkit-autofill,
-      textarea:-webkit-autofill {
-        animation-duration: 50000s;
-        animation-name: livewireautofill;
-      }
-      @keyframes livewireautofill {
-        from {
-        }
-      }
-    </style>
-    <script
-      defer
-      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
-    ></script>
+    <script>import 'Scripts/boostrap.js';</script>
   </head>
   <body class="h-full">
     <div x-data="{ isOpen: false }">
@@ -305,5 +303,6 @@ const pathWithoutLang = pathWithoutBase.replace(
         </main>
       </div>
     </div>
+    <slot name="foot" />
   </body>
 </html>

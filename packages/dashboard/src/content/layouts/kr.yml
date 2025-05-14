@@ -10,10 +10,18 @@ main:
   market_news: 시장 뉴스
   close_sidebar: 사이드바 닫기
   open_sidebar: 사이드바 열기
+  free: 무료
+  pricing: 가격
+  glossary: 용어 사전
+  contact_us: 연락처
   nav_bar:
     -
       title: 도구
       links:
+        - title: 미래 시장 통계
+          href: "/dashboard/future-market-stats"
+          icon: "arrow-trending-up"
+          free: true
         - title: 암호화폐 발행률
           href: "/dashboard/crypto-emission-rate"
           icon: "crypto-emission-rate"

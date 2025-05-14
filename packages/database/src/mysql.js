@@ -89,28 +89,28 @@ export class MySQLConnection extends DatabaseConnection {
     return `INSERT INTO ${this.quote(table)} (${quotedCols}) ${select} ON DUPLICATE KEY UPDATE ${quotedUpdateColumns}`
   }
 
-  async replaceInto (table, data, uniqueKeys = []) {
+  async replaceInto(table, data, uniqueKeys = []) {
     if (!Array.isArray(data)) {
       data = [data]
     }
-
+  
     if (data.length === 0) return
-
+  
     const columns = Object.keys(data[0])
-
-    const rowPlaceholders = data.map(() =>
-      `(${columns.map(() => '?').join(', ')})`
-    ).join(', ')
-
-    const select = `VALUES ${rowPlaceholders}`
-    const sql = this.#insertIntoSql(table, columns, select, uniqueKeys)
-
-    const values = data.flatMap(item => Object.values(item))
-
-    try {
-      return await this.execute(sql, values)
-    } catch (err) {
-      throw new DatabaseQueryError(`MySQL execute failed: ${err.message}`)
+    const totalColumns = columns.length
+    const safeBatchSize = Math.floor(65535 / totalColumns)
+  
+    for (let i = 0; i < data.length; i += safeBatchSize) {
+      const batch = data.slice(i, i + safeBatchSize)
+      const rowPlaceholders = batch.map(() => `(${columns.map(() => '?').join(', ')})`).join(', ')
+      const select = `VALUES ${rowPlaceholders}`
+      const sql = this.#insertIntoSql(table, columns, select, uniqueKeys)
+      const values = batch.flatMap(item => Object.values(item))
+      try {
+        await this.execute(sql, values)
+      } catch (err) {
+        throw new DatabaseQueryError(`MySQL execute failed: ${err.message}`)
+      }
     }
   }
 

@@ -24,6 +24,8 @@ export const INTERVAL_CONVERT = {
   '1d': INTERVAL_DAILY
 }
 
+const BASE_ASSETS = ['USD', 'USDT', 'USDC']
+
 const BASE_URL = 'https://api.coinalyze.net/v1'
 const DELAY = 2000 // milisegundos
 const MAX_RETRY = 3
@@ -32,6 +34,7 @@ export class Coinalyze {
   constructor (apiKey) {
     this.apiKey = apiKey
     this.batchSize = 20
+    this.hasExpired = false
   }
 
   async getFutureMarkets () {
@@ -52,12 +55,24 @@ export class Coinalyze {
 
   getSymbolForAsset (markets, ...assets) {
     const symbolExchanges = []
-    for (const { symbol, base_asset: baseAsset, quote_asset: quoteAsset } of markets) {
-      if (assets.includes(baseAsset) && ['USD', 'USDT', 'USDC'].includes(quoteAsset)) {
+    const now = Date.now()
+    for (const { symbol, base_asset: baseAsset, quote_asset: quoteAsset, expire_at } of markets) {
+      // Solo incluir contratos no expirados
+      if (
+        assets.includes(baseAsset) &&
+        BASE_ASSETS.includes(quoteAsset) &&
+        (
+          expire_at === null ||
+          expire_at > now
+        )
+      ) {
         symbolExchanges.push(symbol)
+        if (!this.hasExpired) {
+          this.hasExpired = expire_at < now
+        }
       }
     }
-    return symbolExchanges
+    return symbolExchanges 
   }
 
   async getOpenInterestHistory ({ symbols, interval, from, to, convertToUsd = false }) {

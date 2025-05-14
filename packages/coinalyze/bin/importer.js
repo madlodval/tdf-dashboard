@@ -4,7 +4,7 @@ import path from 'path'
 import { hideBin } from 'yargs/helpers'
 
 import { JsonDataLoader } from '../src/dataLoader.js'
-import { connection } from '@tdf/repositories'
+import { connection, DatabaseQueryError, DatabaseConnectionError } from '@tdf/repositories'
 import {
   processOpenInterest,
   processLiquidations,
@@ -118,6 +118,9 @@ async function processFile (db, asset, interval, processor, jsonFilePath, highes
       console.error(`Error importing data from file ${filename} for interval ${interval}:`)
       console.error(importError.message)
       console.error('-----------------------------------------')
+      if (importError instanceof DatabaseQueryError || importError instanceof DatabaseConnectionError) {
+        throw importError
+      }
       return { recordsImported: 0, endTime: null }
     }
   }
@@ -203,6 +206,7 @@ async function handler () {
 
       const processor = processors[resource]
       for (const interval of intervalsToProcess) {
+        console.log(`Importing ${resource} for ${asset} ${interval}`)
         await processInterval(db, resource, asset, interval, processor, sync)
       }
     }

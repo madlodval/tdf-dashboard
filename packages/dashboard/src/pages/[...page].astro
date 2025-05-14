@@ -1,5 +1,6 @@
 ---
 import { map as routes, find } from "../routes";
+import DasboardLayout from "Layouts/default.astro";
 
 export function dasherize(str: string) {
   return str
@@ -47,7 +48,10 @@ export const prerender =  true;
 
 const { entryPoint } = Astro.props;
 const Page = pages[entryPoint];
+const { title, description } = Astro.locals;
 
 ---
 
-<Page /> 
+<DasboardLayout title={title} description={description}>
+  <Page /> 
+</DasboardLayout>

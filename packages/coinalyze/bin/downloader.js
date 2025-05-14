@@ -74,7 +74,7 @@ function ensureInterval (time, seconds, isTo = false) {
 }
 
 function getDefaultRange (now, interval) {
-  const maxIntraDayPoints = 2000
+  const maxIntraDayPoints = 2500
   const intervalDurationInSeconds = INTERVAL_SECONDS[interval] || 0
   const intraDayRangeInSeconds = (
     intervalDurationInSeconds === INTERVAL_SECONDS['1d']
@@ -191,6 +191,8 @@ async function downloadResource (db, client, resource, assetId, intervalId, inte
       currentParams.convertToUsd = true
     }
 
+    console.log(`Downloading ${resource} for ${assetSymbol} ${intervalName} from ${currentFrom} to ${range.to}`)
+
     const res = await client[clientMethod]({ symbols, ...currentParams })
 
     if (!fs.existsSync(intervalDir)) {
@@ -235,14 +237,11 @@ async function handler () {
     const client = new Coinalyze(process.env.COINALYZE_API_KEY)
     const futureMarkets = await cache.remember('future-markets', async () => client.getFutureMarkets())
 
-    const _symbols = client.getSymbolForAsset(futureMarkets, asset.toUpperCase())
+    const symbols = client.getSymbolForAsset(futureMarkets, asset.toUpperCase())
 
-    console.log(_symbols)
-    // process.exit(1)
-    const symbols = [
-      asset.toUpperCase() + 'USD_PERP.A'
-      // asset.toUpperCase() + 'USDT_PERP.A'
-    ]
+    if (client.hasExpired) { // ensures that the cache is deleted if the API key has expired
+      cache.delete('future-markets');
+    }
 
     const assetRepo = new AssetRepository(db)
     const intervalRepo = new IntervalRepository(db)
