@@ -1,7 +1,8 @@
 // @ts-check
-import { defineConfig } from 'astro/config';
+import { defineConfig, envField } from 'astro/config'
+import { i18n } from './src/i18n'
 
-import tailwindcss from '@tailwindcss/vite';
+import tailwindcss from '@tailwindcss/vite'
 
 import sitemap from '@astrojs/sitemap'
 
@@ -12,7 +13,7 @@ export default defineConfig({
   vite: {
     resolve: {
       alias: {
-        "Scripts": "/src/assets/js"
+        Scripts: '/src/assets/js'
       }
     },
     css: {
@@ -24,17 +25,17 @@ export default defineConfig({
         output: {
           manualChunks: id => {
             if (id.includes('node_modules/echarts')) {
-              return 'echarts'; // Chunk para ECharts
+              return 'echarts' // Chunk para ECharts
             }
             if (id.includes('node_modules/lightweight-charts')) {
-               // Chunk para Lightweight Charts. Lightweight Charts a menudo tiene archivos en subcarpetas como 'dist' o 'es'.
-               // id.includes('node_modules/lightweight-charts') cubrirá cualquiera de ellas.
-              return 'lightweight-charts';
+              // Chunk para Lightweight Charts. Lightweight Charts a menudo tiene archivos en subcarpetas como 'dist' o 'es'.
+              // id.includes('node_modules/lightweight-charts') cubrirá cualquiera de ellas.
+              return 'lightweight-charts'
             }
             // Opcional: Crear un chunk 'vendor' para otras dependencias grandes de node_modules
             // Esto ayuda a separar el código de tus librerías de terceros más comunes
             if (id.includes('node_modules') && !id.includes('node_modules/alpinejs')) {
-              return 'vendor';
+              return 'vendor'
             }
             // Si no coincide con ninguna regla, Rollup maneja el chunking por defecto
             // (probablemente en el chunk principal del script o en chunks compartidos generados automáticamente)
@@ -45,7 +46,9 @@ export default defineConfig({
     plugins: [tailwindcss()]
   },
 
-  compressHTML: true,
+  i18n,
+
+  compressHTML: false,
   trailingSlash: 'never',
   integrations: [
     sitemap()
@@ -55,6 +58,11 @@ export default defineConfig({
     assets: 'assets'
   },
   redirects: {
-    '/': '/dashboard/future-market-stats'
+    '/': '/dashboard'
+  },
+  env: {
+    schema: {
+      MARKET_STATS_API_URL: envField.string({ context: "client", access: "public"}),
+    }
   }
-});
+})

@@ -1,10 +1,30 @@
-const EN = 'en';
+import { defaultLocale, locales, routing } from './i18n';
 
-function createMap(routes: Record<string, any>) {
+const SUPPORTED_LANGS = locales;
+
+function createMap(...entryPoints: string[]) {
   const entries: Record<string, any> = {};
+  const routes: Record<string, any> = {};
+
+  // Inicializar rutas para cada entry point
+  entryPoints.forEach(entryPoint => {
+    routes[entryPoint] = {};
+  });
+
+  // Generar rutas para cada idioma y entry point
+  entryPoints.forEach(entryPoint => {
+    SUPPORTED_LANGS.forEach(lang => {
+      if (!routing.prefixDefaultLocale && lang === defaultLocale) {
+        routes[entryPoint][lang] = `dashboard/${entryPoint}`;
+      } else {
+        routes[entryPoint][lang] = `${lang}/dashboard/${entryPoint}`;
+      }
+    });
+  });
+  // Procesar las rutas generadas
   for (const [entryPoint, entry] of Object.entries(routes)) {
-    if (!Object.hasOwn(entry, EN)) {
-      entry[EN] = entryPoint;
+    if (!Object.hasOwn(entry, defaultLocale)) {
+      entry[defaultLocale] = entryPoint;
     }
     for (let [lang, pathsRaw] of Object.entries(entry)) {
       if (pathsRaw === null) {
@@ -14,12 +34,12 @@ function createMap(routes: Record<string, any>) {
       let paths: any[];
       if (!Array.isArray(pathsRaw)) {
         paths = [pathsRaw];
-        if (lang === EN && paths.includes(entryPoint)) {
+        if (lang === defaultLocale && paths.includes(entryPoint)) {
           exists = true;
         }
       } else {
         paths = pathsRaw as any[];
-        if (lang === EN && !paths.includes(entryPoint)) {
+        if (lang === defaultLocale && !paths.includes(entryPoint)) {
           paths.push(entryPoint);
           exists = true;
         }
@@ -43,14 +63,7 @@ function createMap(routes: Record<string, any>) {
   return entries;
 }
 
-export const map = createMap({
-  "dashboard/future-market-stats": {
-    en: "dashboard/future-market-stats",
-    es: "dashboard/es/future-market-stats",
-    de: "dashboard/de/future-market-stats",
-    kr: "dashboard/kr/future-market-stats"
-  },
-});
+export const map = createMap('future-market-stats');
 
 export function find(path: string) {
   return map[path];

@@ -2,7 +2,20 @@
 import SidebarNav from "Components/SidebarNav.astro";
 import SidebarNavItem from "Components/SidebarNavItem.astro";
 import Svg from "Components/Svg.astro";
-const { main } = Astro.locals
+
+interface NavBarItem {
+  title: string;
+  links: Array<{
+    title: string;
+    href: string;
+    icon: string;
+    free?: boolean;
+  }>;
+}
+
+const { main } = Astro.locals;
+const navBar = main.nav_bar as NavBarItem[];
+
 const socialLinks = [
   {
     name: "Facebook",
@@ -45,13 +58,13 @@ const socialLinks = [
     <li>
       <SidebarNavItem 
         href="/dashboard" 
-          title={main.market_news} 
+          title={main.market_news as string} 
           icon="market-news" 
           rounded={false}
       />
     </li>
     {
-      main.nav_bar.map((item) => (
+      navBar.map((item) => (
         <li>
           <SidebarNav title={item.title} links={item.links} />
         </li>
@@ -60,7 +73,7 @@ const socialLinks = [
     <li>
       <SidebarNavItem 
         href="/dashboard/pricing" 
-          title={main.pricing} 
+          title={main.pricing as string} 
           icon="pricing" 
           rounded={false}
       />
@@ -68,7 +81,7 @@ const socialLinks = [
     <li>
       <SidebarNavItem 
         href="/dashboard/glossary" 
-          title={main.glossary} 
+          title={main.glossary as string} 
           icon="glossary" 
           rounded={false}
       />
@@ -76,7 +89,7 @@ const socialLinks = [
     <li>
       <SidebarNavItem 
         href="/dashboard/contact-us" 
-          title={main.contact_us} 
+          title={main.contact_us as string} 
           icon="contact-us" 
           rounded={false}
       />

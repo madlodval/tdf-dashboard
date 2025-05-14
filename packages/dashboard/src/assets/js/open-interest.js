@@ -19,6 +19,7 @@ import {
 } from './utils/charts.js'
 
 import * as echarts from 'echarts'
+import { marketStatsApi } from './api/market-stats.js'
 
 let priceChart,
   oiChart,
@@ -31,7 +32,7 @@ let priceChart,
   shortsSeries
 let symbol = 'BTC'
 let interval = '1d'
-let currency = 'USD'
+const currency = 'USD'
 
 document.addEventListener('symbol-changed', e => {
   symbol = e.detail
@@ -91,25 +92,14 @@ window.addEventListener('load', () => {
 */
 async function loadChartData (symbol, interval) {
   symbol = symbol.toLowerCase()
-  const apiBase = 'http://localhost:3001'
-  // 1) Llamadas paralelas
-  const [oiRes, ohlcvRes, liqRes] = await Promise.all([
-    fetch(`${apiBase}/api/open-interest/${symbol}?interval=${interval}`),
-    fetch(`${apiBase}/api/ohlcv/${symbol}?interval=${interval}`),
-    fetch(`${apiBase}/api/liquidations/${symbol}?interval=${interval}`)
-  ])
-  if (!oiRes.ok || !ohlcvRes.ok || !liqRes.ok) {
-    throw new Error('Error fetching data')
-  }
-
-  // 2) Parseo JSON
+  // 1) Llamadas paralelas usando marketStatsApi
   const [oiRaw, ohlcvRaw, liqRaw] = await Promise.all([
-    oiRes.json(),
-    ohlcvRes.json(),
-    liqRes.json()
+    marketStatsApi.getOpenInterest(symbol, interval),
+    marketStatsApi.getOhlcv(symbol, interval),
+    marketStatsApi.getLiquidations(symbol, interval)
   ])
 
-  // 3) Decodificaciones
+  // 2) Decodificaciones
   const liquidations = decodeLiquidationsCompressed(liqRaw)
 
   // 4) Construcción de priceData & volumeData
@@ -205,8 +195,7 @@ async function fetchAndRenderOIBarChart (symbol = 'BTC', interval = '1d') {
   container.innerHTML = ''
 
   try {
-    const apiBase = 'http://localhost:3001'
-    const res = await fetch(`${apiBase}/api/open-interest/latest-by-exchange/${symbol}?interval=${interval}`)
+    const res = await fetch(`${MARKET_STATS_API_URL}/api/open-interest/latest-by-exchange/${symbol}?interval=${interval}`)
     if (!res.ok) throw new Error('Error al obtener datos de open interest por exchange')
     let { labels, values } = await res.json()
     // Ordenar de mayor a menor valor
@@ -302,54 +291,54 @@ function formatBarValue (value) {
  * @param {string} currency 'USD' o 'BASE'
  * @returns {number}
  */
-function convertValue(value, price, currency) {
+function convertValue (value, price, currency) {
   if (currency === 'BASE' && price > 0) {
-    return value / price;
+    return value / price
   }
-  return value; // USD por defecto
+  return value // USD por defecto
 }
 
 function renderCharts (oiData, priceData, volumeData, liquidations) {
-  destroyCharts();
+  destroyCharts()
 
   // Sincronizar los datos de precio por timestamp para acceso rápido
-  const priceByTime = Object.fromEntries(priceData.map(p => [p.time, p]));
+  const priceByTime = Object.fromEntries(priceData.map(p => [p.time, p]))
 
   // Inicializa los datos convertidos como los originales
-  let oiConverted = oiData;
-  let volumeConverted = volumeData;
-  let liquidationConverted = liquidations;
+  let oiConverted = oiData
+  let volumeConverted = volumeData
+  let liquidationConverted = liquidations
 
   // Solo convierte si la moneda es BASE
   if (currency === 'BASE') {
     oiConverted = oiData.map(oi => {
-      const price = priceByTime[oi.time]?.close || 0;
+      const price = priceByTime[oi.time]?.close || 0
       return {
         open: price > 0 ? oi.open / price : oi.open,
         high: price > 0 ? oi.high / price : oi.high,
         low: price > 0 ? oi.low / price : oi.low,
         close: price > 0 ? oi.close / price : oi.close
-      };
-    });
+      }
+    })
 
     volumeConverted = volumeData.map(vol => {
-      const price = priceByTime[vol.time]?.close || 0;
+      const price = priceByTime[vol.time]?.close || 0
       return {
         open: price > 0 ? vol.open / price : vol.open,
         high: price > 0 ? vol.high / price : vol.high,
         low: price > 0 ? vol.low / price : vol.low,
         close: price > 0 ? vol.close / price : vol.close,
         value: price > 0 ? vol.value / price : vol.value
-      };
-    });
+      }
+    })
 
     liquidationConverted = liquidations.map(lq => {
-      const price = priceByTime[lq.time]?.close || 0;
+      const price = priceByTime[lq.time]?.close || 0
       return {
         longs: price > 0 ? lq.longs / price : lq.longs,
         shorts: price > 0 ? lq.shorts / price : lq.shorts
-      };
-    });
+      }
+    })
   }
 
   // Price

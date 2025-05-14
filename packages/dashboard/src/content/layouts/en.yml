@@ -20,7 +20,7 @@ main:
       links:
         - title: Future Market Stats
           href: "/dashboard/future-market-stats"
-          icon: arow-trending-up
+          icon: arrow-trending-up
           free: true
         - title: Crypto Emission Rate
           href: "/dashboard/crypto-emission-rate"

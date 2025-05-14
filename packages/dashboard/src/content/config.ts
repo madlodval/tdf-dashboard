@@ -20,5 +20,5 @@ const dashboard = defineCollection({
 
 export const collections = {
   layouts,
-  dashboard
+  'future-market-stats': dashboard
 };

@@ -102,7 +102,7 @@ const { main, description } = Astro.locals;
           <button
             id="fullscreen-btn"
             class="hover:bg-blue-50 p-2 rounded transition"
-            title={main.fullscreen}
+            title={main.fullscreen as string}
           >
             <Svg src="fullscreen" />
           </button>
@@ -110,14 +110,14 @@ const { main, description } = Astro.locals;
           <button
             id="screenshot-btn"
             class="hover:bg-blue-50 p-2 rounded transition"
-            title={main.download_image}
+            title={main.download_image as string}
           >
             <Svg src="camera" />
         </button>
           <!-- Botón reset gráficos -->
           <button
             id="reset-charts-btn"
-            title={main.reset_charts}
+            title={main.reset_charts as string}
             class="p-1 rounded hover:bg-gray-100"
           >
             <!-- Icono de reset estilo TradingView -->
