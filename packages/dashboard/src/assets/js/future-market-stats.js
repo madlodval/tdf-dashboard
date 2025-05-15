@@ -19,7 +19,7 @@ import {
 } from './utils/charts.js'
 
 import * as echarts from 'echarts'
-import { marketStatsApi } from './api/market-stats.js'
+import { marketStats } from './api/future-market-stats.js'
 
 let priceChart,
   oiChart,
@@ -32,7 +32,7 @@ let priceChart,
   shortsSeries
 let symbol = 'BTC'
 let interval = '1d'
-const currency = 'USD'
+const currency = 'BASE'
 
 document.addEventListener('symbol-changed', e => {
   symbol = e.detail
@@ -40,29 +40,20 @@ document.addEventListener('symbol-changed', e => {
   fetchAndRenderOIBarChart(symbol, interval)
 })
 
-document.addEventListener('alpine:init', () => {
-  Alpine.data('intervalDropdown', () => ({
-    open: false,
-    intervals: ['1d', '4h', '1h'],
-    selected: '1d'
-  }))
-})
+
 document.addEventListener('interval-changed', e => {
   interval = e.detail
   fetchAndDraw()
   fetchAndRenderOIBarChart(symbol, interval)
 })
 
-// Botón reset: resetea ambos gráficos a su estado original
 const resetBtn = document.getElementById('reset-charts-btn')
 resetBtn.addEventListener('click', () => {
   resetCharts(priceChart, oiChart, volumeChart, liquidationChart)
 })
 
-// Fullscreen handler
 document.getElementById('fullscreen-btn').addEventListener('click', fullscreenCharts)
 
-// Screenshot handler
 document.getElementById('screenshot-btn').addEventListener('click', async () => {
   screenshotCharts(
     ['#price-chart', '#oi-chart', '#volume-chart', '#liquidation-chart'],
@@ -78,115 +69,20 @@ window.addEventListener('load', () => {
   fetchAndRenderOIBarChart(symbol, interval)
 })
 
-/**
- * Obtiene y sincroniza todos los datos necesarios para los charts.
- *
- * @param {string} symbol
- * @param {string} interval
- * @returns {Promise<{
-*   oi: Array,
-*   price: Array,
-*   volume: Array,
-*   liquidation: Array
-* }>}
-*/
-async function loadChartData (symbol, interval) {
-  symbol = symbol.toLowerCase()
-  // 1) Llamadas paralelas usando marketStatsApi
-  const [oiRaw, ohlcvRaw, liqRaw] = await Promise.all([
-    marketStatsApi.getOpenInterest(symbol, interval),
-    marketStatsApi.getOhlcv(symbol, interval),
-    marketStatsApi.getLiquidations(symbol, interval)
-  ])
-
-  // 2) Decodificaciones
-  const liquidations = decodeLiquidationsCompressed(liqRaw)
-
-  // 4) Construcción de priceData & volumeData
-  const priceData = []
-  const volumeData = []
-  if (ohlcvRaw.length > 1) {
-    let t = ohlcvRaw[0]
-    ohlcvRaw.slice(1).forEach(bar => {
-      t += bar[0]
-      priceData.push({ time: t, open: bar[1], high: bar[2], low: bar[3], close: bar[4] })
-      volumeData.push({ time: t, value: bar[5] })
-    })
-  }
-
-  // 5) Construcción de oiDataSynced
-  let oiDataSynced = []
-  if (oiRaw.length > 1) {
-    const base = oiRaw[0]
-    let t = base
-    oiDataSynced = oiRaw.slice(1).map(bar => {
-      t += bar[0]
-      return { time: t, open: bar[1], high: bar[2], low: bar[3], close: bar[4] }
-    })
-    // Imprimir los primeros y últimos 5 timestamps para depuración
-    if (oiDataSynced.length > 0) {
-      console.log('Primeros 5 timestamps OI:')
-      oiDataSynced.slice(0, 5).forEach(d => console.log(d.time, new Date(d.time * 1000).toISOString()))
-      console.log('Últimos 5 timestamps OI:')
-      oiDataSynced.slice(-5).forEach(d => console.log(d.time, new Date(d.time * 1000).toISOString()))
-    }
-  }
-
-  // 6) Intersección de timestamps
-  const priceTs = new Set(priceData.map(b => b.time))
-  const oiTs = new Set(oiDataSynced.map(b => b.time))
-  const common = [...priceTs].filter(ts => oiTs.has(ts))
-
-  const priceSynced = priceData.filter(b => common.includes(b.time)).sort((a, b) => a.time - b.time)
-  const volumeSynced = volumeData.filter(b => common.includes(b.time)).sort((a, b) => a.time - b.time)
-
-  // 7) Liquidations sync
-  let liqSynced = []
-  if (common.length > 0) {
-    liqSynced = common.map(ts => {
-      const found = liquidations.find(d => d.time === ts)
-      return found || { time: ts, longs: 0, shorts: 0 }
-    })
-  } else {
-    liqSynced = priceSynced.map(b => ({ time: b.time, longs: 0, shorts: 0 }))
-  }
-
-  return {
-    oi: oiDataSynced,
-    price: priceSynced,
-    volume: volumeSynced,
-    liquidation: liqSynced
-  }
-}
-
-// ------------ fetchAndDraw simplificado ------------
 
 async function fetchAndDraw () {
   Loader.show()
   try {
-    const { oi, price, volume, liquidation } = await loadChartData(symbol, interval)
+    const { oi, price, volume, liquidation } = await marketStats.history(symbol.toLowerCase(), interval)
     renderCharts(oi, price, volume, liquidation)
     Loader.hide(500)
   } catch (err) {
     console.error(err);
-    // limpia charts existentes...
     [priceChart, oiChart, volumeChart, liquidationChart].forEach(ch => ch?.remove?.())
     Loader.hide(0, err)
   }
 }
 
-function decodeLiquidationsCompressed (arr) {
-  if (!Array.isArray(arr) || arr.length === 0) return []
-  const base = arr[0]
-  let t = base
-  const result = []
-  for (let i = 1; i < arr.length; ++i) {
-    const [offset, longs, shorts] = arr[i]
-    t += offset
-    result.push({ time: t, longs, shorts })
-  }
-  return result
-}
 
 async function fetchAndRenderOIBarChart (symbol = 'BTC', interval = '1d') {
   return
@@ -302,7 +198,7 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
   destroyCharts()
 
   // Sincronizar los datos de precio por timestamp para acceso rápido
-  const priceByTime = Object.fromEntries(priceData.map(p => [p.time, p]))
+  const priceByTime = Object.fromEntries(priceData.map(p => [p.time, p.close]))
 
   // Inicializa los datos convertidos como los originales
   let oiConverted = oiData
@@ -312,8 +208,9 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
   // Solo convierte si la moneda es BASE
   if (currency === 'BASE') {
     oiConverted = oiData.map(oi => {
-      const price = priceByTime[oi.time]?.close || 0
+      const price = priceByTime[oi.time] || 0
       return {
+        time: oi.time,
         open: price > 0 ? oi.open / price : oi.open,
         high: price > 0 ? oi.high / price : oi.high,
         low: price > 0 ? oi.low / price : oi.low,
@@ -322,8 +219,9 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
     })
 
     volumeConverted = volumeData.map(vol => {
-      const price = priceByTime[vol.time]?.close || 0
+      const price = priceByTime[vol.time] || 0
       return {
+        time: vol.time,
         open: price > 0 ? vol.open / price : vol.open,
         high: price > 0 ? vol.high / price : vol.high,
         low: price > 0 ? vol.low / price : vol.low,
@@ -333,8 +231,9 @@ function renderCharts (oiData, priceData, volumeData, liquidations) {
     })
 
     liquidationConverted = liquidations.map(lq => {
-      const price = priceByTime[lq.time]?.close || 0
+      const price = priceByTime[lq.time] || 0
       return {
+        time: lq.time,
         longs: price > 0 ? lq.longs / price : lq.longs,
         shorts: price > 0 ? lq.shorts / price : lq.shorts
       }
