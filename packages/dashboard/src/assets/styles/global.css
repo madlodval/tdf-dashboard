@@ -28,3 +28,11 @@ html {
 [x-cloak] {
     display: none !important;
 }
+
+.full-screen {
+    @apply !fixed top-0 z-50 h-full w-full left-0 p-8 bg-white;
+}
+
+a[href*="tradingview"] > svg {
+    display: none !important;
+}

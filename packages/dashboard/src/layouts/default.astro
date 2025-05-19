@@ -13,6 +13,7 @@ import safariPinned from "Images/favicons/safari-pinned-tab.svg?url";
 import favicon from "Images/favicons/favicon.ico?url";
 import { getRelativeLocaleUrl } from 'astro:i18n';
 import { defaultLocale } from '../i18n';
+import Svg from "Components/Svg.astro";
 
 const {
   title = "Your Default Title",
@@ -78,8 +79,6 @@ const favicons = {
     <link rel="stylesheet" href={styles} />
 
     <slot name="head" />
-
-    <script>import 'Scripts/bootstrap.js';</script>
   </head>
   <body class="h-full">
     <div x-data="{ isOpen: false }">
@@ -123,19 +122,7 @@ const favicons = {
                 class="-m-2.5 p-2.5"
               >
                 <span class="sr-only">{header.close_sidebar}</span>
-                <svg
-                  class="h-6 w-6 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke-width="1.5"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
+                <Svg src="x-mark" class="h-6 w-6 text-white" />
               </button>
             </div>
 
@@ -171,19 +158,7 @@ const favicons = {
               class="-m-2.5 p-2.5 text-gray-700 lg:hidden"
             >
               <span class="sr-only">{header.open_sidebar}</span>
-              <svg
-                class="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"></path>
-              </svg>
+              <Svg src="bars-3" class="h-6 w-6" />
             </button>
 
             <div class="h-6 w-px bg-gray-200 lg:hidden" aria-hidden="true">
@@ -205,35 +180,12 @@ const favicons = {
                     class="p-2.5 text-sm font-semibold leading-6 text-gray-900"
                   >
                     <div class="lg:hidden text-gray-400 hover:text-gray-500">
-                      <svg
-                        class="w-6 h-6"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke-width="1.5"
-                        stroke="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5"
-                        ></path>
-                      </svg>
+                      <Svg src="flag" class="w-6 h-6" />
                     </div>
 
                     <div class="hidden lg:flex lg:items-center">
                       <span>{header.language}</span>
-                      <svg
-                        class="ml-2 h-5 w-5 text-gray-400"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                          clip-rule="evenodd"></path>
-                      </svg>
+                      <Svg src="chevron-down" class="ml-2 h-5 w-5 text-gray-400" />
                     </div>
                   </button>
 
@@ -297,6 +249,7 @@ const favicons = {
         </main>
       </div>
     </div>
+    <script>import 'Scripts/bootstrap.js';</script>
     <slot name="foot" />
   </body>
 </html>

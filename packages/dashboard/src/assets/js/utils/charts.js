@@ -1,266 +1,426 @@
-/** globals LightweightCharts */
-
 import {
-  LineStyle,
   createChart,
   TickMarkType,
-  CandlestickSeries, HistogramSeries, PriceScaleMode, CrosshairMode
+  createImageWatermark
 } from 'lightweight-charts'
 
-// Color constants
-const COLOR_WHITE = '#fff'
-const COLOR_DARK_TEXT = '#222'
-const COLOR_PRIMARY = '#2563eb'
-const COLOR_GRID_BORDER = '#e5e7eb'
-export const COLOR_PRICE_LINE = '#26a69a'
+import { screenshotCharts } from './screenshot'
+import { fullscreenCharts } from './fullscreen'
 
-// Puedes cambiar 'es' por navigator.language o el idioma que desees
-const MONTHS = getMonthNames(navigator.language || 'es', 'short')
+const MONTHS = getMonthNames(document.documentElement.lang || 'es', 'short')
 
-export const TIME_OPTIONS = {
-  timeVisible: true,
-  secondsVisible: false,
-  rightOffset: 3, // margen derecho
-  barSpacing: 10,  // separación entre velas
-  fixLeftEdge: false,
-  fixRightEdge: false,
-  /*
-  tickMarkFormatter: (time, tickMarkType) => {
-    const d = new Date(time * 1000)
-    switch (tickMarkType) {
-      case TickMarkType.Year:
-        return d.getUTCFullYear().toString()
-      case TickMarkType.Month:
-        return MONTHS[d.getUTCMonth()]
-      case TickMarkType.Day:
-        // Formato: 01 Ene o 1 Ene
-        return `${d.getUTCDate().toString().padStart(2, '0')} ${MONTHS[d.getUTCMonth()]}`
-      default:
-        return ''
+export class LightChart {
+  constructor (containerId, config) {
+    this.containerId = containerId
+    this.config = this._normalizeConfig(config)
+    this.container = document.getElementById(containerId)
+    this.chart = null
+    this.seriesInstances = []
+    this.ohclElements = {}
+    this.labels = {}
+    this.latestTime = 0
+    this.interval = '1d'
+    this.crosshairHandler = null
+    this.toolHandlers = {}
+    this.resizeObservers = []
+  }
+
+  _normalizeConfig (config) {
+    const { options = {}, series = [], watermark } = config
+    this.watermark = watermark
+    return {
+      options,
+      series: Array.isArray(series) ? series : [series]
     }
-  },
-  */
-  borderColor: COLOR_GRID_BORDER,
-  visible: true
-}
+  }
 
-// Chart configuration constants
-export const VALUE_OPTIONS = {
-  autoSize: true,
-  localization: {
-    priceFormatter: formatAmount,
-  },
-  layout: {
-    background: { color: COLOR_WHITE },
-    textColor: COLOR_DARK_TEXT
-  },
-  grid: {
-    vertLines: { visible: false },
-    horzLines: { visible: false }
-  },
-  crosshair: {
-    vertLine: {
-      color: COLOR_PRIMARY,
-      width: 1,
-      style: LineStyle.Dashed,
-      labelVisible: true
-    },
-    horzLine: {
-      color: COLOR_PRIMARY,
-      width: 1,
-      style: LineStyle.Dashed,
-      labelVisible: true
+  render (interval, ...data) {
+    if (!this.container) {
+      return {}
     }
-  },
-  rightPriceScale: {
-    borderColor: COLOR_GRID_BORDER,
-    mode: 0,
-    ticksVisible: false,
-    autoScale: true,
-  },
-  timeScale: { ...TIME_OPTIONS, visible: false }
-}
+    this.interval = interval
+    this._createChart()
+    this._addSeries(data)
+    this._setupPanes()
+    this._setupWatermark()
+    this._setupCrosshairHandlers()
+    this._showLastValues()
+    this._setupTimeScale()
 
-export class TimeScaleSync {
-  static register(...charts) {
-    charts.forEach(src => {
-      src.timeScale().subscribeVisibleLogicalRangeChange(range => {
-        charts.forEach(ch => {
-          if (ch !== src) {
-            ch.timeScale().setVisibleLogicalRange(range)
+    return {
+      chart: this.chart,
+      series: this.seriesInstances
+    }
+  }
+
+  _createChart () {
+    if (this.chart !== null) {
+      this.destroy()
+    }
+    this.chart = createChart(this.container, {
+      ...this.config.options,
+      width: this.container.clientWidth,
+      height: this.container.clientHeight
+    })
+  }
+
+  _addSeries (seriesData = undefined) {
+    this.seriesInstances = this.config.series.map(({ type, options, data, pane = {} }, index) => {
+      if (data === undefined && Array.isArray(seriesData)) {
+        data = seriesData[index]
+      }
+      const series = this.chart.addSeries(type, {
+        lastValueVisible: true,
+        priceLineVisible: false,
+        ...options
+      }, pane.index)
+
+      series.setData(data)
+      this.latestTime = Math.max(this.latestTime, data.at(-1).time)
+      return series
+    })
+  }
+
+  _showLastValues () {
+    const seriesData = new Map()
+
+    this.seriesInstances.forEach(series => {
+      const data = series.data()
+      if (data.length > 0) {
+        seriesData.set(series, data.at(-1))
+      }
+    })
+
+    if (seriesData.size > 0) {
+      const param = {
+        point: { x: 0, y: 0 },
+        time: this.latestTime,
+        seriesData
+      }
+      this._updateCrosshairValues(param)
+    }
+  }
+
+  _setupPanes () {
+    const mainTop = this.container.getBoundingClientRect().top
+    const panes = this.chart.panes()
+
+    this.labels = Array.from(this.container.querySelectorAll('div[data-pane-index]')).reduce((acc, el) => {
+      const paneIndex = el.getAttribute('data-pane-index')
+
+      this.ohclElements[paneIndex] = Array.from(el.querySelectorAll('span[data-value]')).reduce((acc, el) => {
+        const key = el.getAttribute('data-value')
+        el.dataset.title = el.textContent.trim()
+        acc[key] = el
+        return acc
+      }, {})
+
+      acc[paneIndex] = el
+      return acc
+    }, {})
+
+    const labelEntries = []
+
+    this.config.series.toReversed().forEach(({ pane }) => {
+      const { index: paneIndex, height } = pane || {}
+
+      if (height && paneIndex !== undefined) {
+        const targetPane = panes[paneIndex]
+        targetPane.setHeight(height)
+        /*
+        targetPane.priceScale('right').applyOptions({
+          priceRange: {
+            minValue: 0
+          },
+          margins: {
+            below: 0.1,
+            above: 0.1
+          },
+          scaleMargins: {
+            top: 0.3,
+            bottom: 0.25
           }
         })
-      })
+        */
+        const label = this.labels[paneIndex]
+
+        labelEntries.push({
+          pane: targetPane,
+          label
+        })
+      }
     })
-  }
-}
 
-export class CrosshairSync {
-  // Array interno donde guardamos los items registrados
-  static items = []
-
-  /**
-     * Registra un chart y sus series para sincronizar el crosshair.
-     *
-     * @param {IChartApi} chart       Instancia de LightweightCharts.createChart(...)
-     * @param {...ISeriesApi} series  Una o más series asociadas a ese chart
-     */
-  static register(chart, ...series) {
-    // Creamos el handler y lo guardamos en el registro
-    const handler = param => this._onCrosshairMove(chart, param);
-    this.items.push({ chart, series, handler });
-    chart.subscribeCrosshairMove(handler);
+    if (labelEntries.length > 0) {
+      this._setupLabels(mainTop, labelEntries)
+    }
   }
 
-  /**
-     * Handler interno que se dispara en cada movimiento de crosshair.
-     * @private
-     * @param {IChartApi} sourceChart
-     * @param {MouseEventParams} param
-     */
-  static _onCrosshairMove(sourceChart, param) {
-    // 1) Obtenemos el registro del chart origen
-    const source = this.items.find(item => item.chart === sourceChart)
-    let dataPoint = null
+  _handleResize () {
+    this._repositionLabels()
+  }
 
-    // 2) Si hay time, buscamos el primer punto válido en sus series
-    if (param.time) {
-      for (const s of source.series) {
-        const dp = param.seriesData.get(s)
-        if (dp) {
-          dataPoint = dp
-          break
+  _setupWatermark () {
+    if (this.watermark) {
+      const { paneIndex, url, ...opts } = this.watermark
+      const pane = this.chart.panes()[paneIndex || 0]
+      createImageWatermark(pane, url, opts)
+    }
+  }
+
+  _setupLabels (mainTop, labels) {
+    if (labels.length === 0) {
+      return
+    }
+
+    const entry = labels.pop()
+
+    const sync = (entry) => {
+      try {
+        const { pane, label } = entry
+        const htmlElement = pane.getHTMLElement()
+
+        if (!htmlElement || !htmlElement.cells || htmlElement.cells.length < 2) {
+          setTimeout(() => sync(entry), 50)
+          return
         }
+        const observer = new ResizeObserver(this._handleResize.bind(this))
+        this.resizeObservers.push(observer)
+        observer.observe(htmlElement)
+        const [, elLeft] = htmlElement.cells
+        label.removeAttribute('hidden')
+        const paneTop = elLeft.getBoundingClientRect().top
+        label.style.top = `${paneTop - mainTop}px`
+        this._setupLabels(mainTop, labels)
+      } catch (e) {
+        setTimeout(() => sync(entry), 50)
       }
     }
 
-    // 3) Recorremos todos los charts registrados y aplicamos o limpiamos el crosshair
-    this.items.forEach(({ chart, series }) => {
-      if (dataPoint) {
-        // Si tenemos dataPoint, lo ponemos sobre cada serie de cada chart
-        series.forEach(s => {
-          chart.setCrosshairPosition(dataPoint.value, dataPoint.time, s)
-        })
-      } else {
-        // Si no hay dataPoint (salimos del área), limpiamos
-        chart.clearCrosshairPosition()
+    sync(entry)
+  }
+
+  _setupCrosshairHandlers () {
+    this.crosshairHandler = this._handleCrosshairMove.bind(this)
+    this.chart.subscribeCrosshairMove(this.crosshairHandler)
+  }
+
+  _handleCrosshairMove (param) {
+    if (!param.point) {
+      return this._showLastValues()
+    }
+
+    if (param.time) {
+      this._updateCrosshairValues(param)
+    }
+  }
+
+  _updateCrosshairValues (param) {
+    const valuesByPane = this._collectSeriesData(param)
+
+    Object.entries(valuesByPane).forEach(([paneIndex, values]) => {
+      Object.values(this.ohclElements[paneIndex]).forEach((el, index) => {
+        el.textContent = `${el.dataset.title} ${values[index]}`.trim()
+        el.style.opacity = '1'
+      })
+    })
+  }
+
+  _collectSeriesData (param) {
+    const valuesByPane = {}
+
+    param.seriesData.forEach((data, series) => {
+      const pane = series.getPane()
+      const paneIndex = pane.paneIndex()
+
+      if (!valuesByPane[paneIndex]) {
+        valuesByPane[paneIndex] = []
+      }
+
+      if (Object.hasOwn(data, 'value')) {
+        valuesByPane[paneIndex].push(formatAmount(data.value))
+      } else if (Object.hasOwn(data, 'close')) {
+        valuesByPane[paneIndex].push(
+          formatAmount(data.open),
+          formatAmount(data.high),
+          formatAmount(data.low),
+          formatAmount(data.close)
+        )
+      }
+    })
+
+    return valuesByPane
+  }
+
+  _setupTimeScale () {
+    if (this.interval) {
+      const { from, to } = getIntervalRange(this.interval, this.latestTime)
+      this.chart.timeScale().setVisibleRange({ from, to })
+    } else {
+      this.chart.timeScale().fitContent()
+    }
+  }
+
+  reset () {
+    this._setupTimeScale()
+    for (const pane of this.chart.panes()) {
+      pane.priceScale('right').applyOptions({ autoScale: true })
+    }
+  }
+
+  destroy () {
+    if (this.chart) {
+      this._cleanupToolHandlers()
+      this._unsubscribeEvents()
+      this.chart.remove()
+      this.chart = null
+    }
+
+    Object.values(this.ohclElements).forEach(els => {
+      Object.values(els).forEach(el => {
+        if (el && el.style) {
+          el.style.opacity = '0'
+          el.textContent = el.dataset.title || ''
+        }
+      })
+    })
+
+    Object.values(this.labels).forEach(label => {
+      if (label) {
+        label.setAttribute('hidden', true)
+      }
+    })
+
+    this.seriesInstances = []
+    this.ohclElements = {}
+    this.labels = {}
+    this.latestTime = 0
+    this.crosshairHandler = null
+  }
+
+  _unsubscribeEvents () {
+    if (this.chart && this.crosshairHandler) {
+      for (const observer of this.resizeObservers) {
+        observer.disconnect()
+      }
+      this.chart.unsubscribeCrosshairMove(this.crosshairHandler)
+      this.crosshairHandler = null
+    }
+  }
+
+  resize () {
+    if (this.chart && this.container) {
+      this.chart.resize(
+        this.container.clientWidth,
+        this.container.clientHeight
+      )
+    }
+  }
+
+  fullscreen () {
+    this.container.classList.add('full-screen')
+    fullscreenCharts(() => {
+      this.container.classList.remove('full-screen')
+      setTimeout(() => {
+        this._repositionLabels()
+      }, 100)
+    })
+
+    setTimeout(() => {
+      this._repositionLabels()
+    }, 100)
+  }
+
+  screenshot (opts) {
+    screenshotCharts([`#${this.containerId}`], opts)
+  }
+
+  _repositionLabels () {
+    if (!this.container || !this.chart) return
+
+    const mainTop = this.container.getBoundingClientRect().top
+    const panes = this.chart.panes()
+
+    Object.entries(this.labels).forEach(([paneIndex, label]) => {
+      try {
+        const targetPane = panes[parseInt(paneIndex, 10)]
+        if (!targetPane) return
+
+        const htmlElement = targetPane.getHTMLElement()
+        if (!htmlElement || !htmlElement.cells || htmlElement.cells.length < 2) return
+
+        const [, elLeft] = htmlElement.cells
+        const paneTop = elLeft.getBoundingClientRect().top
+        label.style.top = `${paneTop - mainTop}px`
+      } catch (err) {
+        console.warn(`Error repositioning label for pane ${paneIndex}:`, err)
       }
     })
   }
 
-  /**
-     * Elimina todas las suscripciones y limpia los registros
-     */
-  static reset() {
-    this.items.forEach(({ chart, handler }) => {
-      chart.unsubscribeCrosshairMove(handler);
-    });
-    this.items = [];
-  }
-}
+  tools (toolsConfig = {}) {
+    const {
+      resetButtonId = 'reset-charts-btn',
+      fullscreenButtonId = 'fullscreen-btn',
+      screenshotButtonId = 'screenshot-btn',
+      screenshotFilename = 'charts-screenshot.png'
+    } = toolsConfig
 
-/**
-   * Crea/Re-renderiza un chart y sus series de forma genérica.
-   * @param {Object} params
-   * @param {string} params.containerId      ID del div donde va el chart
-   * @param {IChartApi | undefined} params.prevChart  Instancia antigua (se removerá)
-   * @param {number} params.height           Altura en píxeles del chart
-   * @param {object} [params.chartOptions]   Opciones específicas que quieras mezclar con VALUE_OPTIONS
-   * @param {Array<{
-  *    type: SeriesConstructor,
-  *    options: object,
-  *    data: Array
-  * }>} params.seriesList  Definición de cada serie a añadir
-  * @returns {{ chart: IChartApi, series: ISeriesApi[] }}
-  */
-export function renderChart(containerId, {
-  options = {},
-  series = []
-}) {
-  // 2) obtener contenedor y validar
-  const container = document.getElementById(containerId)
-  if (!container) {
-    console.warn(`Container #${containerId} no encontrado`)
-    return {}
-  }
-  // 3) crear el chart
-  const chart = createChart(container, {
-    ...VALUE_OPTIONS,
-    ...options,
-    width: container.clientWidth,
-    height: container.clientHeight
-  })
-  // 4) añadir series y 5) setData
-  const seriesInstances = series.map(({ type, options, data }) => {
-    const series = chart.addSeries(type, options)
-    series.setData(data)
-    return series
-  })
+    // Limpiamos listeners previos si existen
+    this._cleanupToolHandlers()
 
-  return { chart, series: seriesInstances }
-}
+    setTimeout(() => {
+    // Reset button
+      const resetBtn = document.getElementById(resetButtonId)
+      if (resetBtn) {
+        this.toolHandlers.reset = () => this.reset()
+        resetBtn.addEventListener('click', this.toolHandlers.reset)
+      }
 
-/**
-   * Clase estática para sincronizar el ancho del price-scale derecho
-   * entre múltiples charts de lightweight-charts.
-   */
-export class PriceScaleSync {
-  // Charts registrados para sync
-  static _charts = []
+      // Fullscreen button
+      const fullscreenBtn = document.getElementById(fullscreenButtonId)
+      if (fullscreenBtn) {
+        this.toolHandlers.fullscreen = () => this.fullscreen()
+        fullscreenBtn.addEventListener('click', this.toolHandlers.fullscreen)
+      }
 
-  /**
-     * Registra uno o más charts para que siempre tengan
-     * el mismo ancho de price-scale derecho.
-     *
-     * @param  {...IChartApi} charts  Instancias de createChart(...)
-     */
-  static register(...charts) {
-    // Sobrescribe la lista de charts a sincronizar
-    PriceScaleSync._charts = charts
-    // Suscribirse al cambio de tamaño de cada uno
-    charts.forEach(chart => {
-      chart.timeScale().subscribeSizeChange(() => PriceScaleSync._updateScales())
-    })
-    // Aplicar una vez al inicio
-    PriceScaleSync._updateScales()
-  }
-
-  /**
-     * Recalcula el máximo ancho de price-scale entre todos los charts
-     * y lo fija como minimumWidth en cada uno.
-     * @private
-     */
-  static _updateScales() {
-    const charts = PriceScaleSync._charts
-    if (charts.length === 0) return
-    // 1) Medir cada width
-    const widths = charts.map(ch => ch.priceScale('right').width())
-    // 2) Calcular el máximo
-    const maxWidth = Math.max(...widths)
-    // 3) Fijar minimumWidth igual al máximo
-    charts.forEach(ch => {
-      ch.applyOptions({
-        rightPriceScale: {
-          minimumWidth: maxWidth
+      // Screenshot button
+      const screenshotBtn = document.getElementById(screenshotButtonId)
+      if (screenshotBtn) {
+        this.toolHandlers.screenshot = () => {
+          this.screenshot({
+            filename: screenshotFilename
+          })
         }
-      })
-    })
+        screenshotBtn.addEventListener('click', this.toolHandlers.screenshot)
+      }
+    }, 0)
+    return this
+  }
+
+  _cleanupToolHandlers () {
+    const { reset, fullscreen, screenshot } = this.toolHandlers
+
+    if (reset) {
+      const resetBtn = document.getElementById('reset-charts-btn')
+      if (resetBtn) resetBtn.removeEventListener('click', reset)
+    }
+
+    if (fullscreen) {
+      const fullscreenBtn = document.getElementById('fullscreen-btn')
+      if (fullscreenBtn) fullscreenBtn.removeEventListener('click', fullscreen)
+    }
+
+    if (screenshot) {
+      const screenshotBtn = document.getElementById('screenshot-btn')
+      if (screenshotBtn) screenshotBtn.removeEventListener('click', screenshot)
+    }
+
+    this.toolHandlers = {}
   }
 }
 
-function capitalize(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1)
-}
-
-// Devuelve los nombres de los meses localizados según el idioma y formato
-function getMonthNames(locale = 'es', format = 'short') {
-  const formatter = new Intl.DateTimeFormat(locale, { month: format })
-  return Array.from({ length: 12 }, (_, i) =>
-    capitalize(formatter.format(new Date(2000, i, 1))).replace('.', '')
-  )
-}
-
-function formatAmount(val) {
+export function formatAmount (val) {
   const n = Number(val)
   if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(2) + 'B'
   if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -271,112 +431,44 @@ function formatAmount(val) {
   })
 }
 
-/**
- * Resets the time and price scales for any number of charts.
- *
- * @param  {...IChartApi} charts  Instances of LightweightCharts.createChart(...)
- */
-export function resetCharts(...charts) {
-  charts.forEach(chart => {
-    // Reset the horizontal time scale
-    chart.timeScale().resetTimeScale()
-    // Re-enable auto-scaling on the right price scale
-    chart.priceScale('right').applyOptions({ autoScale: true })
-  })
-}
-
-export function fullscreenCharts() {
-  const root = document.body
-  if (!document.fullscreenElement) {
-    root.requestFullscreen()
-  } else {
-    document.exitFullscreen()
+export function tickMarkFormatter (time, tickMarkType) {
+  const d = new Date(time * 1000)
+  switch (tickMarkType) {
+    case TickMarkType.Year:
+      return d.getUTCFullYear().toString()
+    case TickMarkType.Month:
+      return MONTHS[d.getUTCMonth()]
+    case TickMarkType.DayOfMonth:
+      // Formato: 01 Ene o 1 Ene
+      return `${d.getUTCDate().toString()}`
+    default:
+      return ''
   }
 }
 
-/**
- * Captura uno o más charts (Canvas) en un solo PNG y dispara la descarga.
- *
- * @param {string[]} containerSelectors
- *   Array de selectores CSS de los contenedores donde están los <canvas> de los charts.
- * @param {Object} [options]
- * @param {string} [options.logoUrl]
- *   URL del logo SVG (o imagen) que se dibujará como marca de agua.
- * @param {number} [options.logoWidth=110]
- *   Ancho en px del logo.
- * @param {number} [options.logoHeight=32]
- *   Alto en px del logo.
- * @param {number} [options.logoMargin=16]
- *   Margen en px desde la esquina inferior derecha.
- * @param {string} [options.filename='charts-screenshot.png']
- *   Nombre del archivo PNG resultante.
- */
-export async function screenshotCharts(
-  containerSelectors,
-  {
-    logoUrl = '/pages/images/td-logo-black-pools.svg',
-    logoWidth = 110,
-    logoHeight = 32,
-    logoMargin = 16,
-    filename = 'charts-screenshot.png'
-  } = {}
-) {
-  // 1) Recolectar todos los canvases de los charts
-  const canvases = containerSelectors
-    .map(sel => document.querySelector(`${sel} canvas`))
-    .filter(c => c instanceof HTMLCanvasElement)
-  if (canvases.length === 0) {
-    alert('No charts to capture')
-    return
+function getIntervalRange (interval, to) {
+  let fromTimestamp = to
+  switch (interval) {
+    case '1h':
+      fromTimestamp -= (86400 * 5)
+      break
+    case '4h':
+      fromTimestamp = to - (86400 * 30)
+      break
+    case '1d':
+      fromTimestamp = to - (86400 * 210)
+      break
   }
-
-  // 2) Calcular dimensiones del combo canvas
-  const width = Math.max(...canvases.map(c => c.width))
-  const height = canvases.reduce((sum, c) => sum + c.height, 0)
-
-  // 3) Crear canvas combinado y contexto
-  const combo = document.createElement('canvas')
-  combo.width = width
-  combo.height = height
-  const ctx = combo.getContext('2d')
-
-  // 4) Dibujar cada canvas uno debajo de otro
-  let offsetY = 0
-  for (const c of canvases) {
-    ctx.drawImage(c, 0, offsetY)
-    offsetY += c.height
-  }
-
-  // 5) Función utilitaria para disparar la descarga
-  function download(dataUrl) {
-    const link = document.createElement('a')
-    link.download = filename
-    link.href = dataUrl
-    link.click()
-  }
-
-  // 6) Si hay logo, cargarlo y dibujarlo como watermark
-  if (logoUrl) {
-    const logo = new Image()
-    logo.crossOrigin = 'anonymous'
-    logo.onload = () => {
-      ctx.globalAlpha = 0.8
-      ctx.drawImage(
-        logo,
-        width - logoWidth - logoMargin,
-        height - logoHeight - logoMargin,
-        logoWidth,
-        logoHeight
-      )
-      ctx.globalAlpha = 1.0
-      download(combo.toDataURL('image/png'))
-    }
-    logo.onerror = () => download(combo.toDataURL('image/png'))
-    logo.src = logoUrl
-  } else {
-    // Sin logo, descarga directa
-    download(combo.toDataURL('image/png'))
-  }
+  return { from: fromTimestamp, to }
 }
 
-export { CandlestickSeries, HistogramSeries, PriceScaleMode }
+function getMonthNames (locale = 'es', format = 'short') {
+  const formatter = new Intl.DateTimeFormat(locale, { month: format })
+  return Array.from({ length: 12 }, (_, i) =>
+    capitalize(formatter.format(new Date(2000, i, 1))).replace('.', '')
+  )
+}
+
+function capitalize (str) {
+  return str.charAt(0).toUpperCase() + str.slice(1)
+}

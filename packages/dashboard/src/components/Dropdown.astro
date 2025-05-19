@@ -1,0 +1,66 @@
+---
+interface Props {
+   items: string[] | Record<string, string>;
+  selected?: string;
+  eventName?: string;
+  widthClass?: string;
+}
+import Svg from './Svg.astro';
+const {
+  items,
+  eventName = 'item-changed',
+  widthClass = 'w-40',
+} = Astro.props as Props;
+
+const entries = Array.isArray(items)
+  ? items.map(item => [item, item])
+  : Object.entries(items);
+
+const defaultSelected = entries[0][0];
+const { selected = defaultSelected } = Astro.props as Props;
+---
+<div
+  x-data={`{ open: false, selected: '${selected}' }`}
+  class="relative"
+  x-cloak
+  @click.outside="open = false"
+>
+  <button
+    id="dropdown-button"
+    type="button"
+    @click="open = !open"
+    class="p-2.5 text-sm font-semibold leading-6 text-gray-900 bg-white rounded-md shadow-none hover:bg-gray-50 focus:outline-none flex items-center"
+  >
+    <span x-text="selected"></span>
+    <Svg src="chevron-down" class="ml-2 h-5 w-5 text-gray-400" />
+  </button>
+
+  <div
+    x-show="open"
+    x-cloak
+    x-transition:enter="transition ease-out duration-100"
+    x-transition:enter-start="transform opacity-0 scale-95"
+    x-transition:enter-end="transform opacity-100 scale-100"
+    x-transition:leave="transition ease-in duration-75"
+    x-transition:leave-start="transform opacity-100 scale-100"
+    x-transition:leave-end="transform opacity-0 scale-95"
+    class={`absolute left-0 z-30 mt-2.5 ${widthClass} origin-top-left rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none`}
+    role="menu"
+    aria-orientation="vertical"
+    aria-labelledby="dropdown-button"
+    tabindex="-1"
+  >
+    {entries.map(([value, label]) => (
+      <button
+        type="button"
+        role="menuitem"
+        tabindex="-1"
+        @click={`selected=\'${value}\'; open = false; $dispatch('${eventName}', \'${value}\')`}
+        class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50 transition"
+        :class={`selected === \'${value}\'&&'bg-gray-50'`}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
+</div>

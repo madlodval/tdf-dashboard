@@ -1,22 +1,12 @@
 ---
 import ChartCard from "Components/ChartCard.astro";
 import Svg from "Components/Svg.astro";
-
+import Dropdown from "Components/Dropdown.astro";
+import Loader from "Components/Loader.astro";
 const { main, description } = Astro.locals;
+const symbols = ['BTC', 'ETH', 'XRP', 'BNB', 'SOL'];
+const intervals = ['1d', '4h', '1h']
 ---
-
-<Fragment slot="head">
-  <style is:global>
-    a[href*="tradingview"] > svg {
-      display: none !important;
-    }
-  </style>
-</Fragment>
-
-<Fragment slot="foot">
-  <script>import 'Scripts/future-market-stats.js';</script>
-</Fragment>
-
 <div class="flex items-center">
   <h1
     class="flex-1 text-2xl font-extrabold text-gray-900 tracking-tight sm:text-3xl"
@@ -34,66 +24,15 @@ const { main, description } = Astro.locals;
       class="bg-white px-4 py-2 flex items-center justify-between border-b border-gray-200"
     >
       <div class="flex items-center gap-3">
-        <!-- Dropdown para símbolo -->
-        <div
-          x-data="{ open: false, symbols: ['BTC', 'ETH', 'XRP', 'BNB', 'SOL'], selected: 'BTC' }"
-          class="relative"
-          x-cloak  >
-          <button
-            @click="open = !open"
-            class="p-2.5 text-sm font-semibold leading-6 text-gray-900 bg-white rounded-md shadow-none hover:bg-gray-50 focus:outline-none flex items-center"
-            type="button"
-          >
-            <span x-text="selected"></span>
-            <svg class="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
-            </svg>
-          </button>
-          <div
-            x-show="open"
-            @click.outside="open = false"
-            class="absolute left-0 z-50 mt-2.5 w-40 origin-top-left rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none"
-          >
-            <template x-for="s in symbols" :key="s">
-              <button
-                @click="selected = s; open = false; $dispatch('symbol-changed', s)"
-                class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50 transition"
-              >
-                <span x-text="s"></span>
-              </button>
-            </template>
-          </div>
-        </div>
-        <!-- Dropdown para intervalos (sin label) -->
-        <div
-          x-data="{ open: false, intervals: ['1d', '4h', '1h'], selected: '1d' }"
-          class="relative ml-2"
-          x-cloak  >
-          <button
-            @click="open = !open"
-            class="p-2.5 text-sm font-semibold leading-6 text-gray-900 bg-white rounded-md shadow-none hover:bg-gray-50 focus:outline-none flex items-center"
-            type="button"
-          >
-            <span x-text="selected"></span>
-            <svg class="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
-            </svg>
-          </button>
-          <div
-            x-show="open"
-            @click.outside="open = false"
-            class="absolute left-0 z-50 mt-2.5 w-32 origin-top-left rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none"
-          >
-            <template x-for="i in intervals" :key="i">
-              <button
-                @click="selected = i; open = false; $dispatch('interval-changed', i)"
-                class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50 transition"
-              >
-                <span x-text="i"></span>
-              </button>
-            </template>
-          </div>
-        </div>
+        <Dropdown
+          items={symbols}
+          eventName="symbol-changed"
+        />
+        <Dropdown
+          items={intervals}
+          eventName="interval-changed"
+          widthClass="w-30"
+        />
       </div>
       <div class="flex items-center gap-4">
         <!-- Botones de acciones (incluye fullscreen/reset) -->
@@ -126,67 +65,56 @@ const { main, description } = Astro.locals;
         </div>
       </div>
     </div>
-    <div class="relative h-full mt-6">
-      <div
-        id="loading-overlay"
-        class="absolute inset-0 flex items-center justify-center bg-white/80 z-50 opacity-0 pointer-events-none transition-opacity duration-500"
-      >
-        <div class="flex flex-col items-center">
-          <div id="loading-spinner" class="flex flex-col items-center">
-            <Svg src="loading" />
-            <span class="text-blue-700 font-semibold">{main.loading}</span>
-          </div>
-          <span
-            id="loading-error"
-            class="hidden text-red-500 font-semibold text-center mt-2"></span>
-        </div>
-      </div>
-      <!-- Precio -->
+    <div class="relative h-full">
+      <Loader />
       <div class="bg-white relative">
         <div class="flex flex-col md:flex-row gap-8">
           <div class="flex-1 overflow-hidden px-4">
-            <div class="relative">
-              <div
-                class="flex justify-between items-center mb-1 relative mt-4"
-              >
-                <span class="text-sm"> {main.price} </span>
+            <div id="full-chart" class="h-[850px] relative">
+
+              <div data-pane-index="0"
+                  class="absolute px-1 py-0.5 transition-opacity duration-200 z-20 text-gray-900"
+                  hidden
+                >
+                {main.price} <span data-value="open" class="text-xs opacity-0 text-gray-500">{main.text_short.open}</span>
+                <span data-value="high" class="text-xs opacity-0 text-gray-500">{main.text_short.high}</span>
+                <span data-value="low" class="text-xs opacity-0 text-gray-500">{main.text_short.low}</span>
+                <span data-value="close" class="text-xs opacity-0 text-gray-500">{main.text_short.close}</span>
               </div>
-              <div id="price-chart" class="min-h-[300px]"></div>
-              <div class="border-b border-gray-100 w-full"></div>
-            </div>
-            <div class="relative">
-              <div
-                class="flex justify-between items-center mb-1 relative mt-4"
+
+              <div data-pane-index="1"
+                  class="absolute px-1 py-0.5 transition-opacity duration-200 z-20 text-gray-900"
+                  hidden
               >
-                <span class="text-sm"> {main.open_interest} </span>
+                {main.open_interest} <span data-value="open" class="text-xs opacity-0 text-gray-500">{main.text_short.open}</span>
+                <span data-value="high" class="text-xs opacity-0 text-gray-500">{main.text_short.high}</span>
+                <span data-value="low" class="text-xs opacity-0 text-gray-500">{main.text_short.low}</span>
+                <span data-value="close" class="text-xs opacity-0 text-gray-500">{main.text_short.close}</span>
               </div>
-              <div id="oi-chart" class="min-h-[200px]"></div>
-              <div class="border-b border-gray-100 w-full"></div>
-            </div>
-            <div class="relative">
-              <div
-                class="flex justify-between items-center mb-1 relative mt-4"
-              >
-                <span class="text-sm"> {main.volume} </span>
+
+              <div data-pane-index="2"
+                  class="absolute px-1 py-0.5 transition-opacity duration-200 z-20 text-gray-900"
+                  hidden
+                >
+                {main.volume} <span data-value="value" class="text-xs opacity-0 text-gray-500"></span>
               </div>
-              <div id="volume-chart" class="min-h-[200px]"></div>
-            </div>
-            <div class="relative">
-              <div
-                class="flex justify-between items-center mb-1 relative mt-4"
-              >
-                <span class="text-sm"> {main.liquidations} </span>
+
+              <div data-pane-index="3"
+                  class="absolute px-1 py-0.5 transition-opacity duration-200 z-20 text-gray-900"
+                  hidden
+                >
+                {main.liquidations} <span data-value="longs" class="text-xs opacity-0 text-gray-500">{main.text_short.longs}</span>
+                <span data-value="shorts" class="text-xs opacity-0 text-gray-500">{main.text_short.shorts}</span>
               </div>
-              <div id="liquidation-chart" class="min-h-[200px]"></div>
+
             </div>
           </div>
         </div>
-      </div>
-      <div id="charts-resizer" class="border-b border-gray-100 resize hidden">
       </div>
     </div>
   </ChartCard>
 </section>
 
-<div id="oi-bar-chart" class="bg-white rounded shadow p-4 mt-6 h-[300px]">
-</div>
+<Fragment slot="foot">
+  <script>import 'Scripts/future-market-stats.js';</script>
+</Fragment>

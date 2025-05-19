@@ -56,23 +56,23 @@ export class Coinalyze {
   getSymbolForAsset (markets, ...assets) {
     const symbolExchanges = []
     const now = Date.now()
-    for (const { symbol, base_asset: baseAsset, quote_asset: quoteAsset, expire_at } of markets) {
+    for (const { symbol, base_asset: baseAsset, quote_asset: quoteAsset, expire_at: expireAt } of markets) {
       // Solo incluir contratos no expirados
       if (
         assets.includes(baseAsset) &&
         BASE_ASSETS.includes(quoteAsset) &&
         (
-          expire_at === null ||
-          expire_at > now
+          expireAt === null ||
+          expireAt > now
         )
       ) {
         symbolExchanges.push(symbol)
         if (!this.hasExpired) {
-          this.hasExpired = expire_at < now
+          this.hasExpired = expireAt < now
         }
       }
     }
-    return symbolExchanges 
+    return symbolExchanges
   }
 
   async getOpenInterestHistory ({ symbols, interval, from, to, convertToUsd = false }) {
@@ -101,6 +101,14 @@ export class Coinalyze {
       '/liquidation-history',
       symbols,
       { from, to, interval, convert_to_usd: convertToUsd }
+    )
+  }
+
+  async getLongShortRatioHistory ({ symbols, interval, from, to }) {
+    return this.#requestBySymbols(
+      '/liquidation-history',
+      symbols,
+      { from, to, interval }
     )
   }
 

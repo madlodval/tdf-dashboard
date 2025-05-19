@@ -240,7 +240,7 @@ async function handler () {
     const symbols = client.getSymbolForAsset(futureMarkets, asset.toUpperCase())
 
     if (client.hasExpired) { // ensures that the cache is deleted if the API key has expired
-      cache.delete('future-markets');
+      cache.delete('future-markets')
     }
 
     const assetRepo = new AssetRepository(db)

@@ -15,16 +15,19 @@ const { main } = Astro.locals;
 const { currentLocale = 'en' } = Astro;
 
 const { href, title, icon, isFree = false, rounded = true } = Astro.props;
+const path = getRelativeLocaleUrl(currentLocale, href)
+const currentPath = Astro.url.pathname
+const isActive = currentPath === path
 ---
 <a
   
-    href={getRelativeLocaleUrl(currentLocale, href)}
+    href={path}
     title={title}
-    class="text-gray-700 hover:text-indigo-600 hover:bg-gray-50 group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold"
+    class={`${isActive ? 'bg-gray-50 text-indigo-600' : 'text-gray-700'} hover:text-indigo-600 hover:bg-gray-50 group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold`}
   >
   {rounded ? (
     <span
-      class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-[0.625rem] font-medium bg-white group-hover:border-indigo-600 group-hover:text-indigo-600 text-gray-400 border-gray-200"
+      class={`${isActive ? 'text-indigo-600 border-indigo-600' : 'text-gray-400 border-gray-200'} flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-[0.625rem] font-medium bg-white group-hover:border-indigo-600 group-hover:text-indigo-600`}
     >  
     <Svg src={icon} class="size-4" />
     </span>

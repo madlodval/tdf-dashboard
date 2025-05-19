@@ -1,4 +1,4 @@
-export async function connectWithRetry(db, retries = 5, delayMs = 2000) {
+export async function connectWithRetry (db, retries = 5, delayMs = 2000) {
   let attempt = 0
   while (attempt < retries) {
     try {
@@ -15,4 +15,4 @@ export async function connectWithRetry(db, retries = 5, delayMs = 2000) {
       }
     }
   }
-} 
+}

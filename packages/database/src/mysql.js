@@ -58,6 +58,11 @@ export class MySQLConnection extends DatabaseConnection {
     try {
       return await this.connection.query(sql, params)
     } catch (err) {
+      if (err.message && err.message.includes('connection is in closed state')) {
+        this.connection = null
+        this.ensureConnected()
+        return this.query(sql, params)
+      }
       throw new DatabaseQueryError(`MySQL query failed: ${err.message}`)
     }
   }
@@ -66,6 +71,11 @@ export class MySQLConnection extends DatabaseConnection {
     try {
       return await this.connection.execute(sql, params)
     } catch (err) {
+      if (err.message && err.message.includes('connection is in closed state')) {
+        this.connection = null
+        this.ensureConnected()
+        return this.execute(sql, params)
+      }
       throw new DatabaseQueryError(`MySQL execute failed: ${err.message}`)
     }
   }
@@ -89,17 +99,17 @@ export class MySQLConnection extends DatabaseConnection {
     return `INSERT INTO ${this.quote(table)} (${quotedCols}) ${select} ON DUPLICATE KEY UPDATE ${quotedUpdateColumns}`
   }
 
-  async replaceInto(table, data, uniqueKeys = []) {
+  async replaceInto (table, data, uniqueKeys = []) {
     if (!Array.isArray(data)) {
       data = [data]
     }
-  
+
     if (data.length === 0) return
-  
+
     const columns = Object.keys(data[0])
     const totalColumns = columns.length
     const safeBatchSize = Math.floor(65535 / totalColumns)
-  
+
     for (let i = 0; i < data.length; i += safeBatchSize) {
       const batch = data.slice(i, i + safeBatchSize)
       const rowPlaceholders = batch.map(() => `(${columns.map(() => '?').join(', ')})`).join(', ')

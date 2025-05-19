@@ -1,7 +1,7 @@
 import { APIError, DatabaseError, isOperationalError } from '../errors.js'
 import { DatabaseConnectionError, DatabaseQueryError } from '@tdf/repositories'
 
-export function errorHandler(err, req, res, next) {
+export function errorHandler (err, req, res, next) {
   // Log error para seguimiento interno
   console.error('Error:', {
     name: err.name,
@@ -28,4 +28,4 @@ export function errorHandler(err, req, res, next) {
   )
 
   return res.status(500).json(defaultError.toJSON())
-} 
+}

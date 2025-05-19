@@ -1,0 +1,25 @@
+---
+interface Props {
+  title: string;
+  ohlc: { [key: string]: number | string };
+  chartId: string;
+  minHeight?: string;
+  separator?: boolean
+}
+
+const { title, ohlc, chartId, minHeight = '400px', separator = false } = Astro.props;
+---
+
+<div class="relative">
+  <div
+    class="absolute top-0 left-0 z-10 flex gap-x-2"
+  >
+    <span class="text-sm"> {title} </span>
+    {Object.entries(ohlc).map(([key, value]) => (
+      <span class="text-sm" data-type={key}> {value} </span>
+    ))}
+  </div>
+
+  <div id={chartId} style={{ minHeight: minHeight }}></div>
+  {separator && <div class="border-b border-gray-100 w-full"></div>}
+</div>

@@ -63,7 +63,21 @@ function createMap(...entryPoints: string[]) {
   return entries;
 }
 
-export const map = createMap('future-market-stats');
+export const map = createMap(
+  'future-market-stats',
+  'bitcoin-vs-gold',
+  'crypto-emission-rate',
+  'etf-bitcoin-holders',
+  /*
+  'liquidation-heatmap',
+  'liquidation-profile',
+  'btc-supplier-model',
+  'trendiff',
+  'high-frequency',
+  'historical-chart',
+  'bitxpander'
+  */
+);
 
 export function find(path: string) {
   return map[path];

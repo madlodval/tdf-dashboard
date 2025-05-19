@@ -10,3 +10,7 @@ main:
   open_interest: Interest abierto
   volume: Volumen
   liquidations: Liquidaciones
+  o: A
+  h: A
+  l: B
+  c: C

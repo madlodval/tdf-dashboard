@@ -12,10 +12,10 @@ declare namespace App {
             [key: string]: string|object;
         },
         main: {
-            [key: string]: string|object|object[]|string[]|object[][];
+            [key: string]: any;
         },
         footer: {
             [key: string]: string|object;
-        }
+        }   
     }
 }
