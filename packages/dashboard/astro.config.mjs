@@ -43,7 +43,15 @@ export default defineConfig({
         }
       }
     },
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+
+    server: {
+      allowedHosts: true
+    },
+    preview: {
+      allowedHosts: true
+    }
+
   },
 
   i18n,
@@ -62,7 +70,7 @@ export default defineConfig({
   },
   env: {
     schema: {
-      MARKET_STATS_API_URL: envField.string({ context: "client", access: "public"}),
+      MARKET_STATS_API_URL: envField.string({ context: 'client', access: 'public' })
     }
   }
 })

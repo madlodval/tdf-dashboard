@@ -10,7 +10,10 @@ main:
   open_interest: Interest abierto
   volume: Volumen
   liquidations: Liquidaciones
-  o: A
-  h: A
-  l: B
-  c: C
+  text_short:
+    longs: L
+    shorts: S
+    open: O
+    close: C
+    high: H
+    low: L

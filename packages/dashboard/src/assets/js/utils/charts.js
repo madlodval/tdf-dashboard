@@ -6,6 +6,7 @@ import {
 
 import { screenshotCharts } from './screenshot'
 import { fullscreenCharts } from './fullscreen'
+import { LineTool } from './charts/tools/line'
 
 const MONTHS = getMonthNames(document.documentElement.lang || 'es', 'short')
 
@@ -23,6 +24,7 @@ export class LightChart {
     this.crosshairHandler = null
     this.toolHandlers = {}
     this.resizeObservers = []
+    this.lineTool = null
   }
 
   _normalizeConfig (config) {
@@ -47,10 +49,7 @@ export class LightChart {
     this._showLastValues()
     this._setupTimeScale()
 
-    return {
-      chart: this.chart,
-      series: this.seriesInstances
-    }
+    return this.seriesInstances
   }
 
   _createChart () {
@@ -127,26 +126,9 @@ export class LightChart {
       if (height && paneIndex !== undefined) {
         const targetPane = panes[paneIndex]
         targetPane.setHeight(height)
-        /*
-        targetPane.priceScale('right').applyOptions({
-          priceRange: {
-            minValue: 0
-          },
-          margins: {
-            below: 0.1,
-            above: 0.1
-          },
-          scaleMargins: {
-            top: 0.3,
-            bottom: 0.25
-          }
-        })
-        */
-        const label = this.labels[paneIndex]
-
         labelEntries.push({
           pane: targetPane,
-          label
+          label: this.labels[paneIndex]
         })
       }
     })
@@ -254,8 +236,15 @@ export class LightChart {
 
   _setupTimeScale () {
     if (this.interval) {
-      const { from, to } = getIntervalRange(this.interval, this.latestTime)
-      this.chart.timeScale().setVisibleRange({ from, to })
+      const from = getIntervalRange(this.interval)
+      const logicalRange = this.chart.timeScale().getVisibleLogicalRange()
+      if (logicalRange !== null) {
+        const newLogicalRange = {
+          from: logicalRange.from - from,
+          to: logicalRange.to
+        }
+        this.chart.timeScale().setVisibleLogicalRange(newLogicalRange)
+      }
     } else {
       this.chart.timeScale().fitContent()
     }
@@ -360,6 +349,7 @@ export class LightChart {
 
   tools (toolsConfig = {}) {
     const {
+      lineButtonId = 'line-btn',
       resetButtonId = 'reset-charts-btn',
       fullscreenButtonId = 'fullscreen-btn',
       screenshotButtonId = 'screenshot-btn',
@@ -370,7 +360,17 @@ export class LightChart {
     this._cleanupToolHandlers()
 
     setTimeout(() => {
-    // Reset button
+      const lineButton = document.getElementById(lineButtonId)
+
+      if (lineButton) {
+        this.lineTool = new LineTool({
+          button: lineButton,
+          container: this.container,
+          chart: this.chart
+        })
+      }
+
+      // Reset button
       const resetBtn = document.getElementById(resetButtonId)
       if (resetBtn) {
         this.toolHandlers.reset = () => this.reset()
@@ -417,18 +417,45 @@ export class LightChart {
     }
 
     this.toolHandlers = {}
+
+    this.lineTool?.clean()
   }
 }
 
 export function formatAmount (val) {
   const n = Number(val)
-  if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(2) + 'B'
-  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + 'M'
-  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(2) + 'K'
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
+  if (isNaN(n)) {
+    return val
+  }
+
+  const absN = Math.abs(n)
+  let result = ''
+
+  if (n < 0) {
+    result += '-'
+  }
+
+  if (absN >= 1e9) {
+    result += '$' + (absN / 1e9).toFixed(2) + 'B'
+  } else if (absN >= 1e6) {
+    result += '$' + (absN / 1e6).toFixed(2) + 'M'
+  } else if (absN >= 1e3) {
+    result += '$' + (absN / 1e3).toFixed(2) + 'K'
+  } else {
+    result = n.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: true
+    })
+
+    if (result.startsWith('-')) {
+      result = '-' + '$' + result.substring(1)
+    } else {
+      result = '$' + result
+    }
+  }
+
+  return result
 }
 
 export function tickMarkFormatter (time, tickMarkType) {
@@ -446,20 +473,16 @@ export function tickMarkFormatter (time, tickMarkType) {
   }
 }
 
-function getIntervalRange (interval, to) {
-  let fromTimestamp = to
+function getIntervalRange (interval) {
   switch (interval) {
     case '1h':
-      fromTimestamp -= (86400 * 5)
-      break
+      return 15
     case '4h':
-      fromTimestamp = to - (86400 * 30)
-      break
+      return 90
     case '1d':
-      fromTimestamp = to - (86400 * 210)
-      break
+      return 180
   }
-  return { from: fromTimestamp, to }
+  return 0
 }
 
 function getMonthNames (locale = 'es', format = 'short') {

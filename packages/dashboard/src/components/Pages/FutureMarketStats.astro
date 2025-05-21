@@ -39,6 +39,15 @@ const intervals = ['1d', '4h', '1h']
         <div class="flex items-center gap-2 ml-4">
           <!-- Fullscreen Icon -->
           <button
+            id="line-btn"
+            class="hover:bg-blue-50 p-2 rounded transition"
+            title={main.line as string}
+            data-active="false"
+          >
+            <Svg src="line" />
+          </button>
+
+          <button
             id="fullscreen-btn"
             class="hover:bg-blue-50 p-2 rounded transition"
             title={main.fullscreen as string}
@@ -76,7 +85,7 @@ const intervals = ['1d', '4h', '1h']
                   class="absolute px-1 py-0.5 transition-opacity duration-200 z-20 text-gray-900"
                   hidden
                 >
-                {main.price} <span data-value="open" class="text-xs opacity-0 text-gray-500">{main.text_short.open}</span>
+                {main.price} (USD) <span data-value="open" class="text-xs opacity-0 text-gray-500">{main.text_short.open}</span>
                 <span data-value="high" class="text-xs opacity-0 text-gray-500">{main.text_short.high}</span>
                 <span data-value="low" class="text-xs opacity-0 text-gray-500">{main.text_short.low}</span>
                 <span data-value="close" class="text-xs opacity-0 text-gray-500">{main.text_short.close}</span>
@@ -86,7 +95,7 @@ const intervals = ['1d', '4h', '1h']
                   class="absolute px-1 py-0.5 transition-opacity duration-200 z-20 text-gray-900"
                   hidden
               >
-                {main.open_interest} <span data-value="open" class="text-xs opacity-0 text-gray-500">{main.text_short.open}</span>
+                {main.open_interest} (USD) <span data-value="open" class="text-xs opacity-0 text-gray-500">{main.text_short.open}</span>
                 <span data-value="high" class="text-xs opacity-0 text-gray-500">{main.text_short.high}</span>
                 <span data-value="low" class="text-xs opacity-0 text-gray-500">{main.text_short.low}</span>
                 <span data-value="close" class="text-xs opacity-0 text-gray-500">{main.text_short.close}</span>
@@ -96,14 +105,14 @@ const intervals = ['1d', '4h', '1h']
                   class="absolute px-1 py-0.5 transition-opacity duration-200 z-20 text-gray-900"
                   hidden
                 >
-                {main.volume} <span data-value="value" class="text-xs opacity-0 text-gray-500"></span>
+                {main.volume} (USD) <span data-value="value" class="text-xs opacity-0 text-gray-500"></span>
               </div>
 
               <div data-pane-index="3"
                   class="absolute px-1 py-0.5 transition-opacity duration-200 z-20 text-gray-900"
                   hidden
                 >
-                {main.liquidations} <span data-value="longs" class="text-xs opacity-0 text-gray-500">{main.text_short.longs}</span>
+                {main.liquidations} (USD) <span data-value="longs" class="text-xs opacity-0 text-gray-500">{main.text_short.longs}</span>
                 <span data-value="shorts" class="text-xs opacity-0 text-gray-500">{main.text_short.shorts}</span>
               </div>
 

@@ -10,3 +10,10 @@ main:
   open_interest: 미결제약정
   volume: 거래량
   liquidations: 청산
+  text_short:
+    longs: L
+    shorts: S
+    open: O
+    close: C
+    high: H
+    low: L

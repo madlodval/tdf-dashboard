@@ -24,6 +24,8 @@ import {
   tickMarkFormatter
 } from './utils/charts.js'
 import watermark from 'Images/td-logo-black-pools.svg?url'
+import { HorizontalLinePlugin } from './utils/charts/tools/hline.js'
+import { TooltipPrimitive } from './utils/charts/tooltip/tooltip.ts'
 
 let symbol = 'BTC'
 let interval = '1d'
@@ -81,12 +83,12 @@ const chart = new LightChart('full-chart', {
     timeScale: {
       timeVisible: true,
       secondsVisible: false,
-      rightOffset: 50,
-      barSpacing: 10,
+      rightOffset: 2,
+      barSpacing: 15,
       fixRightEdge: false,
-      tickMarkFormatter,
       borderColor: COLOR_GRID_BORDER,
-      visible: true
+      visible: true,
+      tickMarkFormatter
     }
   },
   series: [
@@ -187,8 +189,10 @@ async function fetchAndDraw (symbol, interval) {
   Loader.show()
   try {
     const { oi, price, volume, liquidation } = await marketStats.history(symbol.toLowerCase(), interval)
-    chart
-      .tools()
+    const [priceSeries, ioSeries, vlSeries, lq1Series, lq2Series] = chart
+      .tools({
+        color: COLOR_PRIMARY
+      })
       .render(
         interval,
         price,
@@ -201,6 +205,41 @@ async function fetchAndDraw (symbol, interval) {
         }, [[], []])
 
       )
+    /*
+    const lineOptionsAutoPrice = {
+      chart: chart.chart,
+      color: 'rgba(0, 128, 255, 0.8)',
+      lineWidth: 2,
+      lineStyle: LineStyle.Solid,
+      draggable: true,
+      showDeleteButton: true
+    }
+    const mainSeries = chart.chart.panes()[0].getSeries()[0]
+
+    const miLineaHorizontalAutomatica = new HorizontalLinePlugin(mainSeries, lineOptionsAutoPrice)
+    mainSeries.attachPrimitive(miLineaHorizontalAutomatica)
+    */
+    const tooltipPrimitive = new TooltipPrimitive({
+      lineColor: 'rgba(0, 0, 0, 0.2)',
+      tooltip: {
+        followMode: 'top'
+      },
+      priceExtractor (data, logicalIndex) {
+        const io = ioSeries.dataByIndex(logicalIndex)
+        const vl = vlSeries.dataByIndex(logicalIndex)
+        const lqL = lq1Series.dataByIndex(logicalIndex)
+        const lqS = lq2Series.dataByIndex(logicalIndex)
+        return `Price: ${formatAmount(data.close)}
+          Open interest: ${formatAmount(io.close)}
+          Volume: ${formatAmount(vl.value)}
+          Lq Longs: ${formatAmount(lqL.value)}
+          Lq Short: ${formatAmount(lqS.value)}
+        `
+      }
+    })
+
+    priceSeries.attachPrimitive(tooltipPrimitive)
+
     Loader.hide(500)
   } catch (err) {
     console.error(err)

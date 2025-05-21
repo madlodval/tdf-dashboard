@@ -2,5 +2,7 @@ node_modules/
 .vscode/
 storage/
 
+*.log
+*.lock
 pnpm-lock.yaml
 .env
