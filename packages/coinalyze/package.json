@@ -20,9 +20,11 @@
   "license": "ISC",
   "bin": {
     "tdf-download-clz": "bin/downloader.js",
+    "tdf-fetch-clz": "bin/downloader.js",
     "tdf-import-clz": "bin/importer.js"
   },
   "dependencies": {
+    "@tdf/math-utils": "workspace:^",
     "@tdf/repositories": "workspace:^",
     "dotenv": "^16.5.0",
     "yargs": "^17.7.2"

@@ -1,3 +1,4 @@
+/* global ResizeObserver */
 import {
   createChart,
   TickMarkType,

@@ -46,7 +46,7 @@ export class LineTool {
     // Get coordinates in chart space
     const logical = this.chart.timeScale().coordinateToLogical(x)
     const price = this.chart.panes()[0].getSeries()[0].coordinateToPrice(y)
-    console.log(price);
+    console.log(price)
     if (logical === null || price === null) return
 
     if (!this.lineControls.initialPoint) {

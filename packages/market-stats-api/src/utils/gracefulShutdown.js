@@ -1,4 +1,4 @@
-export function setupGracefulShutdown(db) {
+export function setupGracefulShutdown (db) {
   const shutdown = async () => {
     try {
       console.info('Cerrando conexión a la base de datos...')
@@ -12,4 +12,4 @@ export function setupGracefulShutdown(db) {
   }
   process.on('SIGINT', shutdown)
   process.on('SIGTERM', shutdown)
-} 
+}

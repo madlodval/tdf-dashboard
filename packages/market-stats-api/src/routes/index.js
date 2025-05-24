@@ -8,7 +8,7 @@ import {
   latestLiquidationsByExchangeHandler
 } from '../controllers/index.js'
 
-export function registerRoutes(app, repositories) {
+export function registerRoutes (app, repositories) {
   const modules = [
     {
       apiPath: '/api/open-interest',
@@ -27,9 +27,9 @@ export function registerRoutes(app, repositories) {
         '/latest-by-exchange/:symbol': latestLiquidationsByExchangeHandler
       }
     },
-    { 
-      apiPath: '/api/ohlcv', 
-      routes: { '/:symbol': ohlcvHandler } 
+    {
+      apiPath: '/api/ohlcv',
+      routes: { '/:symbol': ohlcvHandler }
     }
   ]
 
@@ -40,4 +40,4 @@ export function registerRoutes(app, repositories) {
     })
     app.use(apiPath, router)
   })
-} 
+}

@@ -1,4 +1,3 @@
-import { ValidationError, NotFoundError } from '../errors.js'
 import { compressTimeSeries } from '../utils/timeSeries.js'
 import { validateAssetAndInterval } from '../validators/assetInterval.js'
 
@@ -44,18 +43,18 @@ export const liquidationsHandler = ({ assetRepository, liquidationRepository, in
 export const latestLiquidationsByExchangeHandler = ({ assetRepository, liquidationRepository, intervalRepository, exchangeRepository }) => async (req, res) => {
   const { assetId, seconds } = await validateAssetAndInterval(req, { assetRepository, intervalRepository })
   const liquidations = await liquidationRepository.findAllByAssetId(assetId, seconds)
-  
+
   if (!liquidations.length) {
     return res.status(200).json({ labels: [], longs: [], shorts: [] })
   }
-  
+
   const lastTimestamp = Math.max(...liquidations.map(l => l.timestamp))
   const exchangeIds = new Set(liquidations.map(l => l.exchange_id))
   const exchangeNames = await exchangeRepository.findNamesByIds([...exchangeIds])
-  
+
   const longsByExchange = {}
   const shortsByExchange = {}
-  
+
   for (const row of liquidations) {
     if (row.timestamp !== lastTimestamp) continue
     const exchangeName = exchangeNames.get(row.exchange_id) || row.exchange_id
@@ -64,10 +63,10 @@ export const latestLiquidationsByExchangeHandler = ({ assetRepository, liquidati
     longsByExchange[exchangeName] += (row.longs || 0)
     shortsByExchange[exchangeName] += (row.shorts || 0)
   }
-  
+
   const labels = Object.keys(longsByExchange)
   const longs = labels.map(l => longsByExchange[l])
   const shorts = labels.map(l => shortsByExchange[l])
-  
+
   res.status(200).json({ labels, longs, shorts })
-} 
+}

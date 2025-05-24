@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # --- Configuración ---
-SANDBOX_DIR="/home/vallod/Documents/github/tradingdifferent/packages/sandbox"
+SANDBOX_DIR=$(dirname "$0")
 ARGS=("BTC" "ETH" "SOL" "XRP" "BNB")
 LOCK_FILE="$SANDBOX_DIR/tdf-sync-sequence.lock"
 LOG_FILE="$SANDBOX_DIR/tdf-sync-locked.log"

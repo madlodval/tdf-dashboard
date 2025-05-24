@@ -187,10 +187,6 @@ async function downloadResource (db, client, resource, assetId, intervalId, inte
       to: range.to
     }
 
-    if (resource !== RESOURCE_VL) {
-      currentParams.convertToUsd = true
-    }
-
     console.log(`Downloading ${resource} for ${assetSymbol} ${intervalName} from ${currentFrom} to ${range.to}`)
 
     const res = await client[clientMethod]({ symbols, ...currentParams })
@@ -218,7 +214,7 @@ async function getIntervalsToDownload (selectedInterval, intervalRepo) {
     }
     intervalsToDownload.push(intervalData)
   } else {
-    intervalsToDownload = await intervalRepo.findAllEnabled()
+    intervalsToDownload = await intervalRepo.findAllSynchronizable()
     if (intervalsToDownload.length === 0) {
       console.error('Error: No active intervals found in the database.')
       process.exit(1)
@@ -238,9 +234,15 @@ async function handler () {
     const futureMarkets = await cache.remember('future-markets', async () => client.getFutureMarkets())
 
     const symbols = client.getSymbolForAsset(futureMarkets, asset.toUpperCase())
+    /*
+    const symbols = [
+      // `${asset.toUpperCase()}USD_PERP.A`
+      `${asset.toUpperCase()}USDT_PERP.A`
+    ]
+    */
 
     if (client.hasExpired) { // ensures that the cache is deleted if the API key has expired
-      cache.delete('future-markets')
+      // cache.delete('future-markets')
     }
 
     const assetRepo = new AssetRepository(db)

@@ -1,0 +1,16 @@
+{
+  "name": "@tdf/math-utils",
+  "version": "1.0.0",
+  "description": "High precision math utilities for cryptocurrency data",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "bignumber.js": "^9.1.2"
+  },
+  "keywords": ["math", "crypto", "precision", "decimal"],
+  "author": "TDF Team",
+  "license": "MIT"
+}

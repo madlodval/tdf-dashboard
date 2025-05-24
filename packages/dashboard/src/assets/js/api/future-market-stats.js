@@ -1,4 +1,7 @@
 import { MARKET_STATS_API_URL } from 'astro:env/client'
+import { CryptoMath } from '@tdf/math-utils'
+
+export const PRICE_CURRENCY = 'USD'
 
 function * decodeSeries (arr) {
   let currentTime = arr[0]
@@ -59,15 +62,15 @@ export class MarketStatsApi {
     let volumeConverted = volumeData
     let liquidationConverted = liquidations
 
-    if (currency === 'BASE') {
+    if (currency === PRICE_CURRENCY) {
       oiConverted = oiData.map(oi => {
         const price = priceByTime[oi.time] || 0
         return {
           time: oi.time,
-          open: price > 0 ? oi.open / price : oi.open,
-          high: price > 0 ? oi.high / price : oi.high,
-          low: price > 0 ? oi.low / price : oi.low,
-          close: price > 0 ? oi.close / price : oi.close
+          open: price > 0 ? +CryptoMath.multiply(oi.open, price).toFixed(2) : oi.open,
+          high: price > 0 ? +CryptoMath.multiply(oi.high, price).toFixed(2) : oi.high,
+          low: price > 0 ? +CryptoMath.multiply(oi.low, price).toFixed(2) : oi.low,
+          close: price > 0 ? +CryptoMath.multiply(oi.close, price).toFixed(2) : oi.close
         }
       })
 
@@ -75,11 +78,11 @@ export class MarketStatsApi {
         const price = priceByTime[vol.time] || 0
         return {
           time: vol.time,
-          open: price > 0 ? vol.open / price : vol.open,
-          high: price > 0 ? vol.high / price : vol.high,
-          low: price > 0 ? vol.low / price : vol.low,
-          close: price > 0 ? vol.close / price : vol.close,
-          value: price > 0 ? vol.value / price : vol.value
+          open: price > 0 ? +CryptoMath.multiply(vol.open, price).toFixed(2) : vol.open,
+          high: price > 0 ? +CryptoMath.multiply(vol.high, price).toFixed(2) : vol.high,
+          low: price > 0 ? +CryptoMath.multiply(vol.low, price).toFixed(2) : vol.low,
+          close: price > 0 ? +CryptoMath.multiply(vol.close, price).toFixed(2) : vol.close,
+          value: price > 0 ? +CryptoMath.multiply(vol.value, price).toFixed(2) : vol.value
         }
       })
 
@@ -87,21 +90,21 @@ export class MarketStatsApi {
         const price = priceByTime[lq.time] || 0
         return {
           time: lq.time,
-          longs: price > 0 ? lq.longs / price : lq.longs,
-          shorts: price > 0 ? lq.shorts / price : lq.shorts
+          longs: price > 0 ? +CryptoMath.multiply(lq.longs, price).toFixed(2) : lq.longs,
+          shorts: price > 0 ? +CryptoMath.multiply(lq.shorts, price).toFixed(2) : lq.shorts
         }
       })
     }
 
     return {
       price: priceData,
-      open_interest: oiConverted,
+      oi: oiConverted,
       volume: volumeConverted,
-      liquidations: liquidationConverted
+      liquidation: liquidationConverted
     }
   }
 
-  async history (symbol, interval) {
+  async history (symbol, interval, convert = true) {
     const [oiRaw, ohlcvRaw, liqRaw] = await Promise.all([
       this.getOpenInterest(symbol, interval),
       this.getOhlcv(symbol, interval),
@@ -119,12 +122,22 @@ export class MarketStatsApi {
       return found || { time: ts, longs: 0, shorts: 0 }
     })
 
-    return {
+    const result = {
       price: priceData,
       volume: volumeData,
       oi: sortSyncData(oiDataSynced),
       liquidation: sortSyncData(liqSynced)
     }
+
+    return convert
+      ? this.convert(
+        PRICE_CURRENCY,
+        result.price,
+        result.oi,
+        result.volume,
+        result.liquidation
+      )
+      : result
   }
 
   async get (path, params) {

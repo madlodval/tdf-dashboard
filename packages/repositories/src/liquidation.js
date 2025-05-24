@@ -1,5 +1,5 @@
 import { Repository } from '@tdf/database'
-import { BaseSyncRepository } from './base_sync.js'
+import { BaseSyncRepository } from './sync.js'
 
 class BaseRepository extends Repository {
   constructor (db, tableName) {
@@ -21,8 +21,8 @@ class BaseRepository extends Repository {
       exchange_id: +exchangeId,
       asset_id: +assetId,
       timestamp: +timestamp,
-      longs: +longs,
-      shorts: +shorts
+      longs,
+      shorts
     })),
     ['exchange_id', 'asset_id', 'timestamp'])
   }
@@ -57,8 +57,8 @@ export class LiquidationRepository extends BaseSyncRepository {
     const [rows] = await this.query(sql, params)
     return rows.map(row => ({
       time: +row.timestamp,
-      longs: +row.longs,
-      shorts: +row.shorts
+      longs: row.longs,
+      shorts: row.shorts
     }))
   }
 }

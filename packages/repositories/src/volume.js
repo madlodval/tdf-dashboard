@@ -1,5 +1,5 @@
 import { Repository } from '@tdf/database'
-import { BaseSyncRepository } from './base_sync.js'
+import { BaseSyncRepository } from './sync.js'
 
 class BaseRepository extends Repository {
   constructor (db, tableName) {

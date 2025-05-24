@@ -6,6 +6,7 @@ import {
   VolumeRepository,
   LiquidationRepository
 } from '@tdf/repositories'
+import { CryptoMath } from '@tdf/math-utils'
 
 function extractExchangeCode (symbol) {
   const parts = symbol.split('.')
@@ -46,7 +47,7 @@ async function process ({ db, data, asset, interval, sync }, mainRepo, processEn
   const assetId = await assetRepo.findIdBySymbol(asset)
   if (!assetId) throw new Error(`Asset not found: ${asset}`)
 
-  const { id: intervalId, is_base: isBase, enabled } = await intervalRepo.findByName(interval)
+  const { id: intervalId, enabled } = await intervalRepo.findByName(interval)
   if (!intervalId) throw new Error(`Interval not found: ${interval}`)
   if (!enabled) throw new Error(`Interval not enabled: ${interval}`)
 
@@ -92,7 +93,7 @@ async function process ({ db, data, asset, interval, sync }, mainRepo, processEn
     }
   }
   if (batch.length) {
-    await saveData(batch, isBase)
+    await saveData(batch)
     if (lastTimestampProcessed > lastSyncTimestamp) {
       await syncRepo.updateLastTimestamp(
         assetId,
@@ -100,8 +101,8 @@ async function process ({ db, data, asset, interval, sync }, mainRepo, processEn
         lastTimestampProcessed
       )
     }
-    if (isBase && sync) {
-      await syncRepo.syncFromBase()
+    if (sync) {
+      await syncRepo.syncFromBase({ assetId, intervalId })
     }
   }
   return batch.length
@@ -122,17 +123,17 @@ export async function processOpenInterest (params) {
 
         const exMap = acc.get(exchangeId)
         const data = exMap.get(timestamp) || {
-          open: 0,
-          high: 0,
-          low: 0,
-          close: 0,
+          open: CryptoMath.create(0),
+          high: CryptoMath.create(0),
+          low: CryptoMath.create(0),
+          close: CryptoMath.create(0),
           count: 0
         }
 
-        data.open += entry.o
-        data.close += entry.c
-        data.high += entry.h
-        data.low += entry.l
+        data.open = CryptoMath.add(data.open, entry.o)
+        data.close = CryptoMath.add(data.close, entry.c)
+        data.high = CryptoMath.add(data.high, entry.h)
+        data.low = CryptoMath.add(data.low, entry.l)
         data.count += 1
         exMap.set(timestamp, data)
 
@@ -142,11 +143,16 @@ export async function processOpenInterest (params) {
       }
       return lastTimestampProcessed
     },
-    async (data, isBaseInterval) => {
-      if (isBaseInterval) {
-        await oiRepo.BaseRepository.save(data)
-      }
-      return oiRepo.save(data)
+    async (data) => {
+      // Convertir BigNumbers a strings para BD
+      const processedData = data.map(item => ({
+        ...item,
+        open: CryptoMath.toDBString(item.open),
+        high: CryptoMath.toDBString(item.high),
+        low: CryptoMath.toDBString(item.low),
+        close: CryptoMath.toDBString(item.close)
+      }))
+      return oiRepo.save(processedData)
     }
   )
 }
@@ -165,9 +171,13 @@ export async function processLiquidations (params) {
         }
 
         const exMap = acc.get(exchangeId)
-        const data = exMap.get(timestamp) || { longs: 0, shorts: 0 }
-        data.longs += entry.l
-        data.shorts += entry.s
+        const data = exMap.get(timestamp) || {
+          longs: CryptoMath.create(0),
+          shorts: CryptoMath.create(0)
+        }
+
+        data.longs = CryptoMath.add(data.longs, entry.l)
+        data.shorts = CryptoMath.add(data.shorts, entry.s)
         exMap.set(timestamp, data)
 
         if (timestamp > lastTimestampProcessed) {
@@ -177,11 +187,14 @@ export async function processLiquidations (params) {
 
       return lastTimestampProcessed
     },
-    async (data, isBaseInterval) => {
-      if (isBaseInterval) {
-        await liquidationRepo.BaseRepository.save(data)
-      }
-      return liquidationRepo.save(data)
+    async (data) => {
+      // Convertir BigNumbers a strings para BD
+      const processedData = data.map(item => ({
+        ...item,
+        longs: CryptoMath.toDBString(item.longs),
+        shorts: CryptoMath.toDBString(item.shorts)
+      }))
+      return liquidationRepo.save(processedData)
     }
   )
 }
@@ -201,18 +214,19 @@ export async function processVolume (params) {
 
         const exMap = acc.get(exchangeId)
         const data = exMap.get(ts) || {
-          open: 0,
-          high: -Infinity,
-          low: Infinity,
-          close: 0,
-          volume: 0,
+          open: CryptoMath.create(0),
+          high: CryptoMath.create(-Infinity),
+          low: CryptoMath.create(Infinity),
+          close: CryptoMath.create(0),
+          volume: CryptoMath.create(0),
           count: 0
         }
-        data.open += entry.o
-        data.high = Math.max(entry.h, data.high)
-        data.low = Math.min(entry.l, data.low)
-        data.close += entry.c
-        data.volume += entry.v
+
+        data.open = CryptoMath.add(data.open, entry.o)
+        data.high = CryptoMath.max(data.high, CryptoMath.create(entry.h))
+        data.low = CryptoMath.min(data.low, CryptoMath.create(entry.l))
+        data.close = CryptoMath.add(data.close, entry.c)
+        data.volume = CryptoMath.add(data.volume, entry.v)
         data.count += 1
         exMap.set(ts, data)
 
@@ -222,8 +236,8 @@ export async function processVolume (params) {
       }
       return lastTimestampProcessed
     },
-    async (data, isBaseInterval) => {
-      data = data.map(({
+    async (data) => {
+      const processedData = data.map(({
         exchangeId,
         assetId,
         intervalId,
@@ -239,16 +253,13 @@ export async function processVolume (params) {
         assetId,
         intervalId,
         timestamp,
-        open: open / count,
-        high,
-        low,
-        close: close / count,
-        volume
+        open: CryptoMath.toDBString(CryptoMath.divide(open, count)),
+        high: CryptoMath.toDBString(high),
+        low: CryptoMath.toDBString(low),
+        close: CryptoMath.toDBString(CryptoMath.divide(close, count)),
+        volume: CryptoMath.toDBString(volume)
       }))
-      if (isBaseInterval) {
-        await volumeRepo.BaseRepository.save(data)
-      }
-      return volumeRepo.save(data)
+      return volumeRepo.save(processedData)
     }
   )
 }

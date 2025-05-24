@@ -105,3 +105,47 @@ DB_NAME=base_datos
 - Se utilizan transacciones para garantizar la integridad de los datos
 - Los repositorios manejan automáticamente la conexión a la base de datos
 - Se soporta tanto MySQL como PostgreSQL
+
+## OHCL
+Asi se sincronizan los intervalos del interes abierto y el volumen
+```sql
+SELECT
+    t.exchange_id,
+    t.asset_id,
+    t.interval_id,
+    FLOOR(t.timestamp / 900) * 900 AS interval_timestamp,
+    SUBSTRING_INDEX(GROUP_CONCAT(t.open_value ORDER BY t.timestamp ASC), ',', 1) AS open_value,
+    MAX(t.high_value) AS high_value,
+    MIN(t.low_value) AS low_value,
+    SUBSTRING_INDEX(GROUP_CONCAT(t.close_value ORDER BY t.timestamp DESC), ',', 1) AS close_value,
+    SUM(t.volume_value) AS volume_value
+FROM volume t
+WHERE t.interval_id = 2 -- <- es el intervalo base
+GROUP BY 
+    t.exchange_id, 
+    t.asset_id, 
+    interval_timestamp
+HAVING COUNT(*) = 900/300 -- <- es la cantidad de elementos del intervalo base, de  ser exacto
+ORDER BY interval_timestamp;
+```
+
+Asi se sincronizan los intervalos de las liquidaciones
+```sql
+SELECT
+    t.exchange_id,
+    t.asset_id,
+    t.interval_id,
+    FLOOR(t.timestamp / 900) * 900 AS interval_timestamp,
+    SUM(t.longs) AS longs,
+    SUM(t.shorts) AS shorts
+FROM liquidations t
+WHERE
+    t.interval_id = 2 -- <- es el intervalo base
+GROUP BY 
+    t.exchange_id, 
+    t.asset_id, 
+    t.interval_id, 
+    interval_timestamp
+HAVING COUNT(*) <= 900/300 -- <- es la cantidad de elementos del intervalo base, no es necesario que sea exacto
+ORDER BY interval_timestamp;
+```

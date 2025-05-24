@@ -15,4 +15,4 @@ export function compressTimeSeries (data, ...includeFields) {
   })
 
   return [base, ...compressedData]
-} 
+}

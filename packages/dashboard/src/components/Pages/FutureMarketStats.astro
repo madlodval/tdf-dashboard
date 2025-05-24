@@ -5,7 +5,7 @@ import Dropdown from "Components/Dropdown.astro";
 import Loader from "Components/Loader.astro";
 const { main, description } = Astro.locals;
 const symbols = ['BTC', 'ETH', 'XRP', 'BNB', 'SOL'];
-const intervals = ['1d', '4h', '1h']
+const intervals = ['1w', '1d', '4h', '1h']
 ---
 <div class="flex items-center">
   <h1
@@ -30,6 +30,7 @@ const intervals = ['1d', '4h', '1h']
         />
         <Dropdown
           items={intervals}
+          selected="1d"
           eventName="interval-changed"
           widthClass="w-30"
         />

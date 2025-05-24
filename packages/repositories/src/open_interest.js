@@ -1,5 +1,5 @@
 import { Repository } from '@tdf/database'
-import { BaseSyncRepository } from './base_sync.js'
+import { BaseSyncRepository } from './sync.js'
 
 class BaseRepository extends Repository {
   constructor (db, tableName) {
@@ -22,10 +22,10 @@ class BaseRepository extends Repository {
       exchange_id: +exchangeId,
       asset_id: +assetId,
       timestamp: +timestamp,
-      open_value: +open,
-      high_value: +high,
-      low_value: +low,
-      close_value: +close
+      open_value: open,
+      high_value: high,
+      low_value: low,
+      close_value: close
     })), ['exchange_id', 'asset_id', 'timestamp'])
   }
 }
@@ -41,10 +41,10 @@ export class OpenInterestRepository extends BaseSyncRepository {
 
   getDataFields ({ open, low, close, high }) {
     return {
-      open_value: +open,
-      high_value: +high,
-      low_value: +low,
-      close_value: +close
+      open_value: open,
+      high_value: high,
+      low_value: low,
+      close_value: close
     }
   }
 
@@ -60,10 +60,10 @@ export class OpenInterestRepository extends BaseSyncRepository {
     return rows.map(({ timestamp, exchange_id: exchangeId, open_value: openValue, high_value: highValue, low_value: lowValue, close_value: closeValue }) => ({
       timestamp: +timestamp,
       exchange_id: +exchangeId,
-      open: +openValue,
-      high: +highValue,
-      low: +lowValue,
-      close: +closeValue
+      open: openValue,
+      high: highValue,
+      low: lowValue,
+      close: closeValue
     }))
   }
 
@@ -81,11 +81,11 @@ export class OpenInterestRepository extends BaseSyncRepository {
     const params = [assetId, intervalId]
     const [rows] = await this.query(sql, params)
     return rows.map(row => ({
-      time: +row.timestamp,
-      open: +row.open,
-      high: +row.high,
-      low: +row.low,
-      close: +row.close
+      time: row.timestamp,
+      open: row.open,
+      high: row.high,
+      low: row.low,
+      close: row.close
     }))
   }
 

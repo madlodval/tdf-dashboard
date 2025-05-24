@@ -14,7 +14,7 @@ export class AssetRepository extends Repository {
   async findAllIds () {
     const [rows] = await this.query(`SELECT id FROM ${this.quotedTableName}`)
     return rows.reduce((acc, row) => {
-      acc.push(row.id)
+      acc.push(+row.id)
       return acc
     }, [])
   }

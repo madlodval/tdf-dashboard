@@ -1,11 +1,12 @@
 import { Repository } from '@tdf/database'
 import { AssetRepository } from './asset.js'
-import { IntervalRepository, INTERVAL_BASE } from './interval.js'
+import { IntervalRepository } from './interval.js'
 
 // Base class for sync repositories
 export class SyncRepository extends Repository {
   constructor (db, tableName) {
     super(db, `sync_${tableName}`)
+    this.parentTableName = tableName
   }
 
   async getLastTimestamp (assetId, intervalId) {
@@ -28,23 +29,30 @@ export class SyncRepository extends Repository {
     )
   }
 
-  async syncFromBase (assetId = 0) {
+  async syncFromBase ({ assetId = 0, intervalId } = {}) {
     return this.transaction(async (db) => {
-      const intervals = await new IntervalRepository(db).findAll()
+      const intervals = await new IntervalRepository(db).findAllEnabled({
+        ignore: [intervalId].filter(intervalId => intervalId)
+      })
       const assets = assetId
         ? [assetId]
         : await new AssetRepository(db).findAllIds()
       let totalSynced = 0
       for (const assetId of assets) {
         for (const interval of intervals) {
+          /*
           const result = await this.call(
             `${this.tableName}_intervals`, // procedure name
             assetId,
-            interval.id,
-            interval.seconds,
-            INTERVAL_BASE
+            interval
           )
-
+          */
+          const result = await this.call(
+            'generate_aggregated_ohlc',
+            this.parentTableName,
+            assetId,
+            interval
+          )
           const affectedRows = result && result[0] && result[0].affectedRows !== undefined ? result[0].affectedRows : 0
           totalSynced += affectedRows
         }

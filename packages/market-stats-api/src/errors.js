@@ -1,12 +1,12 @@
 export class APIError extends Error {
-  constructor(message, statusCode = 500, originalError = null) {
+  constructor (message, statusCode = 500, originalError = null) {
     super(message)
     this.name = this.constructor.name
     this.statusCode = statusCode
     this.originalError = originalError
   }
 
-  toJSON() {
+  toJSON () {
     return {
       error: {
         message: this.message,
@@ -17,19 +17,19 @@ export class APIError extends Error {
 }
 
 export class ValidationError extends APIError {
-  constructor(message) {
+  constructor (message) {
     super(message, 400)
   }
 }
 
 export class NotFoundError extends APIError {
-  constructor(resource) {
+  constructor (resource) {
     super(`${resource} not found`, 404)
   }
 }
 
 export class DatabaseError extends APIError {
-  constructor(originalError) {
+  constructor (originalError) {
     super(
       'An internal server error occurred',
       500,
@@ -38,9 +38,9 @@ export class DatabaseError extends APIError {
   }
 }
 
-export function isOperationalError(error) {
+export function isOperationalError (error) {
   if (error instanceof APIError) {
     return true
   }
   return false
-} 
+}
