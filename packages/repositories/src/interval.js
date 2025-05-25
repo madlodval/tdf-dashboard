@@ -54,10 +54,10 @@ export class IntervalRepository extends Repository {
     return rows[0].seconds
   }
 
-  async findAllEnabled ({ ignore = [] } = {}) {
+  async findAllEnabledIds ({ ignore = [] } = {}) {
     let query = `
       SELECT
-      id, name, seconds
+      id
       FROM
       ${this.quotedTableName}
       WHERE enabled

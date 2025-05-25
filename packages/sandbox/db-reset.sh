@@ -1,1 +1,0 @@
-mysql -u root -padmin coinalyze < ../repositories/mysql.sql

@@ -230,13 +230,21 @@ BEGIN
         SET @select_columns = '';
         SET @update_columns = '';
         SET @having_condition = '';
+        SET @v_effective_source_interval_id_temp = NULL;
+        SET @v_effective_source_seconds_temp = NULL;
+        SET @v_last_sync_timestamp_temp = NULL;
+        SET @sync_table_name = NULL;
+        SET @select_sync_sql = NULL;
+        SET @interval_sql = NULL;
+        SET @sql = NULL;
+        SET @sync_sql = NULL;
 
         IF p_output_table_name = 'liquidations' THEN
             SET v_is_liquidations = TRUE;
         END IF;
 
         IF p_output_table_name = 'volume' THEN
-        SET v_has_volume = TRUE;
+            SET v_has_volume = TRUE;
         END IF;
 
         IF v_is_liquidations THEN
@@ -272,26 +280,31 @@ BEGIN
         EXECUTE select_sync_stmt;
         DEALLOCATE PREPARE select_sync_stmt;
 
-        SET v_last_sync_timestamp = @v_last_sync_timestamp_temp;
-        IF v_last_sync_timestamp IS NULL THEN
-            SET v_last_sync_timestamp = 0;
-        END IF;
+        SET v_last_sync_timestamp = IFNULL(@v_last_sync_timestamp_temp, 0);
 
         SELECT seconds INTO v_target_interval_seconds
         FROM intervals
         WHERE id = p_target_interval_id;
 
-        SET v_sync_start_timestamp = v_last_sync_timestamp + v_target_interval_seconds;
+        SET v_sync_start_timestamp = v_last_sync_timestamp;
+
+        IF v_last_sync_timestamp > 0 THEN
+            SET v_sync_start_timestamp = v_last_sync_timestamp + v_target_interval_seconds;
+        END IF;
+
+        -- REINICIAR las variables temporales antes de la consulta crítica
+        SET @v_effective_source_interval_id_temp = NULL;
+        SET @v_effective_source_seconds_temp = NULL;
 
         SET @interval_sql = CONCAT(
-        'SELECT id, seconds INTO @v_effective_source_interval_id_temp, @v_effective_source_seconds_temp FROM intervals i WHERE enabled = TRUE ',
-        'AND seconds < ', v_target_interval_seconds,
-        ' AND (', v_target_interval_seconds, ' % seconds) = 0 ',
-        'AND EXISTS (SELECT 1 FROM ', p_output_table_name, ' t ',
-        'WHERE t.asset_id = ', p_asset_id,
-        ' AND t.timestamp >= ', v_sync_start_timestamp,
-        ' AND t.interval_id = i.id LIMIT 1) ',
-        'ORDER BY seconds DESC LIMIT 1'
+            'SELECT id, seconds INTO @v_effective_source_interval_id_temp, @v_effective_source_seconds_temp FROM intervals i WHERE enabled = TRUE ',
+            'AND seconds < ', v_target_interval_seconds,
+            ' AND (', v_target_interval_seconds, ' % seconds) = 0 ',
+            'AND EXISTS (SELECT 1 FROM ', p_output_table_name, ' t ',
+            'WHERE t.asset_id = ', p_asset_id,
+            ' AND t.timestamp >= ', v_sync_start_timestamp,
+            ' AND t.interval_id = i.id LIMIT 1) ',
+            'ORDER BY seconds DESC LIMIT 1'
         );
 
         PREPARE interval_stmt FROM @interval_sql;

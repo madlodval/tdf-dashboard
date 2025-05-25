@@ -7,7 +7,7 @@ import {
 
 import { screenshotCharts } from './screenshot'
 import { fullscreenCharts } from './fullscreen'
-import { LineTool } from './charts/tools/line'
+import { UserPriceLines } from './charts/tools/user-price-lines'
 
 const MONTHS = getMonthNames(document.documentElement.lang || 'es', 'short')
 
@@ -26,6 +26,7 @@ export class LightChart {
     this.toolHandlers = {}
     this.resizeObservers = []
     this.lineTool = null
+    this.linesInstances = []
   }
 
   _normalizeConfig (config) {
@@ -348,6 +349,14 @@ export class LightChart {
     })
   }
 
+  lines () {
+    for (const series of this.seriesInstances) {
+      this.linesInstances.push(UserPriceLines.create(this.chart, series, {
+        color: '#000000'
+      }))
+    }
+  }
+
   tools (toolsConfig = {}) {
     const {
       lineButtonId = 'line-btn',
@@ -364,11 +373,19 @@ export class LightChart {
       const lineButton = document.getElementById(lineButtonId)
 
       if (lineButton) {
-        this.lineTool = new LineTool({
-          button: lineButton,
-          container: this.container,
-          chart: this.chart
-        })
+        this.toolHandlers.hLines = (e) => {
+          const target = e.target
+          if (target.dataset.active === 'true') {
+            for (const line of this.linesInstances) {
+              line.remove()
+            }
+            target.dataset.active = 'false'
+            return
+          }
+          target.dataset.active = 'true'
+          this.lines()
+        }
+        lineButton.addEventListener('click', this.toolHandlers.hLines)
       }
 
       // Reset button
@@ -400,7 +417,7 @@ export class LightChart {
   }
 
   _cleanupToolHandlers () {
-    const { reset, fullscreen, screenshot } = this.toolHandlers
+    const { reset, fullscreen, screenshot, hLines } = this.toolHandlers
 
     if (reset) {
       const resetBtn = document.getElementById('reset-charts-btn')
@@ -415,6 +432,14 @@ export class LightChart {
     if (screenshot) {
       const screenshotBtn = document.getElementById('screenshot-btn')
       if (screenshotBtn) screenshotBtn.removeEventListener('click', screenshot)
+    }
+
+    if (hLines) {
+      const lineButton = document.getElementById('line-btn')
+      if (lineButton) lineButton.removeEventListener('click', hLines)
+      for (const line of this.linesInstances) {
+        line.remove()
+      }
     }
 
     this.toolHandlers = {}

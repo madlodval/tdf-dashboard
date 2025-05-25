@@ -4,9 +4,9 @@ set -euo pipefail
 # --- Configuración ---
 SANDBOX_DIR=$(dirname "$0")
 ARGS=("BTC" "ETH" "SOL" "XRP" "BNB")
-LOCK_FILE="$SANDBOX_DIR/tdf-sync-sequence.lock"
-LOG_FILE="$SANDBOX_DIR/tdf-sync-locked.log"
-SYNC_SCRIPT="tdf-sync-base.sh"
+LOCK_FILE="$SANDBOX_DIR/storage/tdf-sync-sequence.lock"
+LOG_FILE="$SANDBOX_DIR/storage/tdf-sync-locked.log"
+SYNC_SCRIPT="tdf-sync-asset-delta.sh"
 
 # --- Ajustes de entorno para pnpm ---
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"

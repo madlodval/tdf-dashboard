@@ -104,7 +104,7 @@ export class MarketStatsApi {
     }
   }
 
-  async history (symbol, interval, convert = true) {
+  async history (symbol, interval, convert = false) {
     const [oiRaw, ohlcvRaw, liqRaw] = await Promise.all([
       this.getOpenInterest(symbol, interval),
       this.getOhlcv(symbol, interval),

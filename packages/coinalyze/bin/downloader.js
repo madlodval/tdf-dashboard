@@ -233,13 +233,11 @@ async function handler () {
     const client = new Coinalyze(process.env.COINALYZE_API_KEY)
     const futureMarkets = await cache.remember('future-markets', async () => client.getFutureMarkets())
 
-    const symbols = client.getSymbolForAsset(futureMarkets, asset.toUpperCase())
-    /*
+    // const symbols = client.getSymbolForAsset(futureMarkets, asset.toUpperCase())
+
     const symbols = [
-      // `${asset.toUpperCase()}USD_PERP.A`
-      `${asset.toUpperCase()}USDT_PERP.A`
+      `${asset.toUpperCase()}USD_PERP.A`, `${asset.toUpperCase()}USDT_PERP.A`
     ]
-    */
 
     if (client.hasExpired) { // ensures that the cache is deleted if the API key has expired
       // cache.delete('future-markets')

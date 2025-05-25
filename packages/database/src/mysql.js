@@ -56,7 +56,7 @@ export class MySQLConnection extends DatabaseConnection {
 
   async query (sql, params) {
     try {
-      return await this.connection.query(sql, params)
+      return this.connection.query(sql, params)
     } catch (err) {
       if (err.message && err.message.includes('connection is in closed state')) {
         this.connection = null
@@ -69,7 +69,7 @@ export class MySQLConnection extends DatabaseConnection {
 
   async execute (sql, params) {
     try {
-      return await this.connection.execute(sql, params)
+      return this.connection.execute(sql, params)
     } catch (err) {
       if (err.message && err.message.includes('connection is in closed state')) {
         this.connection = null
@@ -84,7 +84,7 @@ export class MySQLConnection extends DatabaseConnection {
     try {
       const placeholders = `(${Array(args.length).fill('?').join(', ')})`
       const sql = `CALL ${this.quote(procedureName)}${placeholders}`
-      return await this.execute(sql, args) // Pasar los argumentos como array
+      return this.execute(sql, args) // Pasar los argumentos como array
     } catch (err) {
       throw new DatabaseQueryError(`MySQL call failed: ${err.message}`)
     }

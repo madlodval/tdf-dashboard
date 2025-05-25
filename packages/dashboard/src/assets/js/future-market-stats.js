@@ -238,8 +238,6 @@ async function fetchAndDraw (symbol, interval) {
       }
     })
 
-    priceSeries.attachPrimitive(tooltipPrimitive)
-
     Loader.hide(500)
   } catch (err) {
     console.error(err)

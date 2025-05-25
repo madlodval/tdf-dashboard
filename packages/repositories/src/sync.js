@@ -2,8 +2,7 @@ import { Repository } from '@tdf/database'
 import { AssetRepository } from './asset.js'
 import { IntervalRepository } from './interval.js'
 
-// Base class for sync repositories
-export class SyncRepository extends Repository {
+class SyncRepository extends Repository {
   constructor (db, tableName) {
     super(db, `sync_${tableName}`)
     this.parentTableName = tableName
@@ -31,7 +30,7 @@ export class SyncRepository extends Repository {
 
   async syncFromBase ({ assetId = 0, intervalId } = {}) {
     return this.transaction(async (db) => {
-      const intervals = await new IntervalRepository(db).findAllEnabled({
+      const intervals = await new IntervalRepository(db).findAllEnabledIds({
         ignore: [intervalId].filter(intervalId => intervalId)
       })
       const assets = assetId
@@ -39,19 +38,12 @@ export class SyncRepository extends Repository {
         : await new AssetRepository(db).findAllIds()
       let totalSynced = 0
       for (const assetId of assets) {
-        for (const interval of intervals) {
-          /*
-          const result = await this.call(
-            `${this.tableName}_intervals`, // procedure name
-            assetId,
-            interval
-          )
-          */
+        for (const intervalId of intervals) {
           const result = await this.call(
             'generate_aggregated_ohlc',
             this.parentTableName,
             assetId,
-            interval
+            intervalId
           )
           const affectedRows = result && result[0] && result[0].affectedRows !== undefined ? result[0].affectedRows : 0
           totalSynced += affectedRows
@@ -89,8 +81,8 @@ export class BaseSyncRepository extends Repository {
     return new SyncRepository(this.db, this.tableName)
   }
 
-  async syncFromBase () {
-    return this.SyncRepository.syncFromBase()
+  async syncFromBase (params = {}) {
+    return this.SyncRepository.syncFromBase(params)
   }
 
   // Abstract method to be implemented by subclasses

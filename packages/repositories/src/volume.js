@@ -1,44 +1,8 @@
-import { Repository } from '@tdf/database'
 import { BaseSyncRepository } from './sync.js'
-
-class BaseRepository extends Repository {
-  constructor (db, tableName) {
-    super(db, `base_${tableName}`)
-  }
-
-  async save (data) {
-    if (!Array.isArray(data)) {
-      data = [data]
-    }
-    return this.replaceInto(data.map(({
-      exchangeId,
-      assetId,
-      timestamp,
-      open,
-      low,
-      close,
-      high,
-      volume
-    }) => ({
-      exchange_id: +exchangeId,
-      asset_id: +assetId,
-      timestamp: +timestamp,
-      open_value: +open,
-      high_value: +high,
-      low_value: +low,
-      close_value: +close,
-      volume_value: +volume
-    })), ['exchange_id', 'asset_id', 'timestamp'])
-  }
-}
 
 export class VolumeRepository extends BaseSyncRepository {
   constructor (db) {
     super(db, 'volume')
-  }
-
-  get BaseRepository () {
-    return new BaseRepository(this.db, this.tableName)
   }
 
   getDataFields (data) {

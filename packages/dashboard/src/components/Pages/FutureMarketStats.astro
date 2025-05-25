@@ -41,11 +41,11 @@ const intervals = ['1w', '1d', '4h', '1h']
           <!-- Fullscreen Icon -->
           <button
             id="line-btn"
-            class="hover:bg-blue-50 p-2 rounded transition"
+            class="hover:bg-blue-50 p-2 rounded transition user data-[active=true]:bg-blue-50"
             title={main.line as string}
             data-active="false"
           >
-            <Svg src="line" />
+            <Svg src="line" class="pointer-events-none" />
           </button>
 
           <button

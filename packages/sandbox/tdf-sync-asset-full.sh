@@ -18,6 +18,7 @@ fi
 
 DOWNLOAD_CMD="pnpm tdf-download-clz -a $ASSET"
 IMPORT_CMD="pnpm tdf-import-clz -a $ASSET"
+INTERVAL_CMD="pnpm tdf-sync-intervals $ASSET"
 
 if [ -n "$INTERVAL" ]; then
   DOWNLOAD_CMD="$DOWNLOAD_CMD -i $INTERVAL"
@@ -33,6 +34,8 @@ eval $DOWNLOAD_CMD || { echo "Error en la descarga."; exit 1; }
 
 eval $IMPORT_CMD || { echo "Error en la importación."; exit 1; }
 
+eval $INTERVAL_CMD || { echo "Error en la sincronización de intervalos."; exit 1; }
+
 if [ "$ORIGINAL_DIR" != "$SCRIPT_DIR" ]; then
   cd "$ORIGINAL_DIR" || { echo "Error: Could not return to original directory."; exit 1; }
-fi 
+fi
