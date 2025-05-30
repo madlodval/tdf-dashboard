@@ -1,3 +1,5 @@
 import Alpine from 'alpinejs'
 
-Alpine.start()
+Alpine.start();
+
+globalThis['Alpine'] = Alpine;

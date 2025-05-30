@@ -7,7 +7,7 @@ ASSET=$1
 INTERVAL_BASE="5m"
 
 if [ -z "$ASSET" ]; then
-  echo "Usage: ./tdf-sync-base.sh <asset>"
+  echo "Usage: ./tdf-sync-delta.sh <asset>"
   exit 1
 fi
 

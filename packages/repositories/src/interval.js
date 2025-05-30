@@ -12,12 +12,14 @@ export const INTERVAL_SECONDS = {
   '4h': 14400,
   '6h': 21600,
   '12h': 43200,
-  '1d': 86400
+  '1D': 86400,
+  '1W': 604800,
+  '1M': 2419200 
 }
 
 export class IntervalRepository extends Repository {
   static isDaily (seconds) {
-    return seconds === INTERVAL_SECONDS['1d']
+    return seconds === INTERVAL_SECONDS['1D']
   }
 
   constructor (db) {

@@ -2,12 +2,13 @@
 import {
   createChart,
   TickMarkType,
-  createImageWatermark
+  createImageWatermark,
+  LineStyle,
 } from 'lightweight-charts'
 
-import { screenshotCharts } from './screenshot'
-import { fullscreenCharts } from './fullscreen'
-import { UserPriceLines } from './charts/tools/user-price-lines'
+import { screenshotCharts } from './charts/tools/screenshot'
+import { fullscreenCharts } from './charts/tools/fullscreen'
+import { VLine } from '@tdf/lwc-plugin-vline'
 
 const MONTHS = getMonthNames(document.documentElement.lang || 'es', 'short')
 
@@ -26,12 +27,70 @@ export class LightChart {
     this.toolHandlers = {}
     this.resizeObservers = []
     this.lineTool = null
-    this.linesInstances = []
+    this.hLinesInstances = []
+    this.vLinesInstances = []
+    this.configTools = {
+      hLines: false,
+      vLines: false
+    }     
+  }
+
+  _handleClick(param) {
+    if (param.point === null) {
+      return
+    }
+    if (this.configTools.hLines) {
+      const curPane = param.paneIndex;
+      const applyToSeries = new Map();
+      let isSet = false;
+      param.seriesData.forEach((data, series) => {
+        const paneIndex = series.getPane().paneIndex();
+        let price = data.value || data.close;
+        if (paneIndex===curPane && !isSet) {
+          const pointPrice = series.coordinateToPrice(param.point.y);
+          if (Object.hasOwn(data, 'high') && Object.hasOwn(data, 'low')) {
+            const { high, low } = data;
+            if (pointPrice>=low && pointPrice<=high) {
+              price = pointPrice;
+              isSet = true;
+            }
+          } else if (pointPrice>=0 && price >= 0) {
+            isSet = true;
+            price = pointPrice;
+          } else if (pointPrice<=0 && price <= 0) {
+            isSet = true;
+            price = pointPrice;
+          }
+        }
+        applyToSeries.set(series, price);
+      })
+      applyToSeries.forEach((price, series) => {
+        this.hLinesInstances.push(series.createPriceLine({
+          price,
+          color: this.lineStyle.color,
+          lineStyle: this.lineStyle.style,
+          lineWidth: this.lineStyle.width,
+        }))
+      })
+    }
+    if (this.configTools.vLines) {
+      const time = param.time;
+      for (const [series, ] of param.seriesData) {
+        const line = new VLine(time, {
+          color: this.lineStyle.color,
+          lineStyle: this.lineStyle.style,
+          lineWidth: this.lineStyle.width,
+        })
+        this.vLinesInstances.push(line)
+        series.attachPrimitive(line)
+      }
+    }
   }
 
   _normalizeConfig (config) {
-    const { options = {}, series = [], watermark } = config
+    const { options = {}, series = [], watermark, lineStyle = {} } = config
     this.watermark = watermark
+    this.lineStyle = lineStyle
     return {
       options,
       series: Array.isArray(series) ? series : [series]
@@ -47,9 +106,10 @@ export class LightChart {
     this._addSeries(data)
     this._setupPanes()
     this._setupWatermark()
-    this._setupCrosshairHandlers()
+    this._subscribeEvents()
     this._showLastValues()
     this._setupTimeScale()
+
 
     return this.seriesInstances
   }
@@ -184,9 +244,11 @@ export class LightChart {
     sync(entry)
   }
 
-  _setupCrosshairHandlers () {
+  _subscribeEvents () {
     this.crosshairHandler = this._handleCrosshairMove.bind(this)
+    this.clickHandler = this._handleClick.bind(this)
     this.chart.subscribeCrosshairMove(this.crosshairHandler)
+    this.chart.subscribeClick(this.clickHandler);
   }
 
   _handleCrosshairMove (param) {
@@ -287,6 +349,7 @@ export class LightChart {
     this.labels = {}
     this.latestTime = 0
     this.crosshairHandler = null
+    this.subscribeClickHandler = null
   }
 
   _unsubscribeEvents () {
@@ -295,7 +358,9 @@ export class LightChart {
         observer.disconnect()
       }
       this.chart.unsubscribeCrosshairMove(this.crosshairHandler)
+      this.chart.unsubscribeClick(this.clickHandler)
       this.crosshairHandler = null
+      this.clickHandler = null
     }
   }
 
@@ -351,100 +416,160 @@ export class LightChart {
 
   lines () {
     for (const series of this.seriesInstances) {
-      this.linesInstances.push(UserPriceLines.create(this.chart, series, {
+      this.hLinesInstances.push(UserPriceLines.create(this.chart, series, {
         color: '#000000'
       }))
     }
   }
 
   tools (toolsConfig = {}) {
+    // Configuración por defecto
+    const defaults = {
+      hLineButtonId: 'h-line-btn',
+      vLineButtonId: 'v-line-btn',
+      resetButtonId: 'reset-charts-btn',
+      fullscreenButtonId: 'fullscreen-btn',
+      screenshotButtonId: 'screenshot-btn',
+      screenshotFilename: 'chart',
+      lineColor: '#000000',
+      lineWidth: 1,
+      lineStyle: LineStyle.Solid
+    }
+
     const {
-      lineButtonId = 'line-btn',
-      resetButtonId = 'reset-charts-btn',
-      fullscreenButtonId = 'fullscreen-btn',
-      screenshotButtonId = 'screenshot-btn',
-      screenshotFilename = 'charts-screenshot.png'
+      lineColor,
+      lineWidth,
+      lineStyle
     } = toolsConfig
 
-    // Limpiamos listeners previos si existen
+    // Guardar configuración
+    this.toolHandlers = { ...defaults, ...toolsConfig }
+    const {
+      hLineButtonId,
+      vLineButtonId,
+      resetButtonId,
+      fullscreenButtonId,
+      screenshotButtonId,
+      screenshotFilename
+    } = this.toolHandlers
+
+    // Inicializar instancias de herramientas de líneas
+    this.horizontalLineTool = null
+    this.verticalLineTool = null
+
+    // Limpiar manejadores existentes
     this._cleanupToolHandlers()
 
+    // Usar setTimeout para asegurar que el DOM esté listo
     setTimeout(() => {
-      const lineButton = document.getElementById(lineButtonId)
-
-      if (lineButton) {
-        this.toolHandlers.hLines = (e) => {
-          const target = e.target
-          if (target.dataset.active === 'true') {
-            for (const line of this.linesInstances) {
-              line.remove()
-            }
+      // Botón de línea horizontal
+      const hLineButton = document.getElementById(hLineButtonId)
+      if (hLineButton && this.chart && this.seriesInstances.length > 0) {
+        const hLineHandler = (e) => {
+          const target = e.currentTarget
+          const isActive = target.dataset.active === 'true'
+          
+          if (isActive) {
+            this.configTools.hLines = false
             target.dataset.active = 'false'
             return
           }
+          this.configTools.hLines = true
           target.dataset.active = 'true'
-          this.lines()
         }
-        lineButton.addEventListener('click', this.toolHandlers.hLines)
+        
+        hLineHandler.buttonId = hLineButtonId
+        this.toolHandlers.hLines = hLineHandler
+        hLineButton.addEventListener('click', hLineHandler)
       }
 
-      // Reset button
+      // Botón de línea vertical
+      const vLineButton = document.getElementById(vLineButtonId)
+      if (vLineButton && this.chart) {
+        const vLineHandler = (e) => {
+          const target = e.currentTarget
+          const isActive = target.dataset.active === 'true'
+          
+          if (isActive) {
+            this.configTools.vLines = false
+            target.dataset.active = 'false'
+            return
+          } 
+          this.configTools.vLines = true
+          target.dataset.active = 'true'
+        }
+        
+        vLineHandler.buttonId = vLineButtonId
+        this.toolHandlers.vLines = vLineHandler
+        vLineButton.addEventListener('click', vLineHandler)
+      }
+
+      // Botón de reinicio
       const resetBtn = document.getElementById(resetButtonId)
       if (resetBtn) {
-        this.toolHandlers.reset = () => this.reset()
-        resetBtn.addEventListener('click', this.toolHandlers.reset)
+        const resetHandler = () => this.reset()
+        resetHandler.buttonId = resetButtonId
+        this.toolHandlers.reset = resetHandler
+        resetBtn.addEventListener('click', resetHandler)
       }
 
-      // Fullscreen button
+      // Botón de pantalla completa
       const fullscreenBtn = document.getElementById(fullscreenButtonId)
       if (fullscreenBtn) {
-        this.toolHandlers.fullscreen = () => this.fullscreen()
-        fullscreenBtn.addEventListener('click', this.toolHandlers.fullscreen)
+        const fullscreenHandler = () => this.fullscreen()
+        fullscreenHandler.buttonId = fullscreenButtonId
+        this.toolHandlers.fullscreen = fullscreenHandler
+        fullscreenBtn.addEventListener('click', fullscreenHandler)
       }
 
-      // Screenshot button
+      // Botón de captura de pantalla
       const screenshotBtn = document.getElementById(screenshotButtonId)
       if (screenshotBtn) {
-        this.toolHandlers.screenshot = () => {
-          this.screenshot({
-            filename: screenshotFilename
-          })
+        const screenshotHandler = () => {
+          this.screenshot({ filename: screenshotFilename })
         }
-        screenshotBtn.addEventListener('click', this.toolHandlers.screenshot)
+        screenshotHandler.buttonId = screenshotButtonId
+        this.toolHandlers.screenshot = screenshotHandler
+        screenshotBtn.addEventListener('click', screenshotHandler)
       }
     }, 0)
     return this
   }
 
   _cleanupToolHandlers () {
-    const { reset, fullscreen, screenshot, hLines } = this.toolHandlers
-
-    if (reset) {
-      const resetBtn = document.getElementById('reset-charts-btn')
-      if (resetBtn) resetBtn.removeEventListener('click', reset)
-    }
-
-    if (fullscreen) {
-      const fullscreenBtn = document.getElementById('fullscreen-btn')
-      if (fullscreenBtn) fullscreenBtn.removeEventListener('click', fullscreen)
-    }
-
-    if (screenshot) {
-      const screenshotBtn = document.getElementById('screenshot-btn')
-      if (screenshotBtn) screenshotBtn.removeEventListener('click', screenshot)
-    }
-
-    if (hLines) {
-      const lineButton = document.getElementById('line-btn')
-      if (lineButton) lineButton.removeEventListener('click', hLines)
-      for (const line of this.linesInstances) {
-        line.remove()
+    const toolTypes = ['reset', 'fullscreen', 'screenshot', 'hLines', 'vLines']
+    toolTypes.forEach(toolType => {
+      const handler = this.toolHandlers[toolType]
+      if (handler && typeof handler === 'function' && handler.buttonId) {
+        const button = document.getElementById(handler.buttonId)
+        if (button) {
+          button.removeEventListener('click', handler)
+          if (button.dataset) {
+            button.dataset.active = 'false'
+          }
+        }
       }
+    })
+    
+    // Limpiar herramientas de líneas
+    if (this.horizontalLineTool) {
+      this.horizontalLineTool.deactivate()
+      this.horizontalLineTool = null
     }
-
-    this.toolHandlers = {}
-
-    this.lineTool?.clean()
+    
+    if (this.verticalLineTool) {
+      this.verticalLineTool.deactivate()
+      this.verticalLineTool = null
+    }
+    
+    // Preservar configuración para la próxima limpieza
+    const config = {}
+    Object.keys(this.toolHandlers).forEach(key => {
+      if (key.endsWith('Id') || key.endsWith('Filename')) {
+        config[key] = this.toolHandlers[key]
+      }
+    })
+    this.toolHandlers = config
   }
 }
 

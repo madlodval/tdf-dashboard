@@ -17,5 +17,10 @@ main:
     close: C
     high: H
     low: L
-    
+  
+  month: Month
+  week: Week
+  day: Day
+  hour: Hour
+  
   

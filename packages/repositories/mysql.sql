@@ -32,7 +32,7 @@ INSERT INTO exchanges (code, name) VALUES
 
 CREATE TABLE intervals (
     id TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(16) NOT NULL UNIQUE,
+    name VARCHAR(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
     seconds INT UNSIGNED NOT NULL,
     is_native BOOLEAN DEFAULT TRUE,
     enabled BOOLEAN DEFAULT TRUE,
@@ -50,8 +50,9 @@ INSERT INTO intervals (name, seconds, enabled,is_native) VALUES
     ('4h', 14400, TRUE, TRUE),
     ('6h', 21600, FALSE, TRUE),
     ('12h', 43200, FALSE, TRUE),
-    ('1d', 86400, TRUE, TRUE),
-    ('1w', 604800, TRUE, FALSE);
+    ('1D', 86400, TRUE, TRUE),
+    ('1W', 604800, TRUE, FALSE),
+    ('1M', 2419200, TRUE, FALSE);
 
 
 CREATE TABLE assets (

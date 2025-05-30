@@ -5,7 +5,13 @@ import Dropdown from "Components/Dropdown.astro";
 import Loader from "Components/Loader.astro";
 const { main, description } = Astro.locals;
 const symbols = ['BTC', 'ETH', 'XRP', 'BNB', 'SOL'];
-const intervals = ['1w', '1d', '4h', '1h']
+const intervals = {
+  '1M': `1 ${main.month}`,
+  '1W': `1 ${main.week}`,
+  '1D': `1 ${main.day}`,
+  '4h': `4 ${main.hour}`,
+  '1h': `1 ${main.hour}`,
+}
 ---
 <div class="flex items-center">
   <h1
@@ -27,11 +33,12 @@ const intervals = ['1w', '1d', '4h', '1h']
         <Dropdown
           items={symbols}
           eventName="symbol-changed"
+          store="symbol"
         />
         <Dropdown
           items={intervals}
-          selected="1d"
           eventName="interval-changed"
+          store="interval"
           widthClass="w-30"
         />
       </div>
@@ -40,12 +47,21 @@ const intervals = ['1w', '1d', '4h', '1h']
         <div class="flex items-center gap-2 ml-4">
           <!-- Fullscreen Icon -->
           <button
-            id="line-btn"
+            id="h-line-btn"
             class="hover:bg-blue-50 p-2 rounded transition user data-[active=true]:bg-blue-50"
-            title={main.line as string}
+            title="Horizontal Line"
             data-active="false"
           >
-            <Svg src="line" class="pointer-events-none" />
+            <Svg src="h-line" class="pointer-events-none" />
+          </button>
+          
+          <button
+            id="v-line-btn"
+            class="hover:bg-blue-50 p-2 rounded transition user data-[active=true]:bg-blue-50"
+            title="Vertical Line"
+            data-active="false"
+          >
+            <Svg src="v-line" class="pointer-events-none" />
           </button>
 
           <button
@@ -65,9 +81,9 @@ const intervals = ['1w', '1d', '4h', '1h']
         </button>
           <!-- Botón reset gráficos -->
           <button
-            id="reset-charts-btn"
+            id="reset-btn"
             title={main.reset_charts as string}
-            class="p-1 rounded hover:bg-gray-100"
+            class="p-1 rounded hover:bg-blue-50"
           >
             <!-- Icono de reset estilo TradingView -->
             <Svg src="reset" />
@@ -126,5 +142,15 @@ const intervals = ['1w', '1d', '4h', '1h']
 </section>
 
 <Fragment slot="foot">
+
+  <script is:inline define:vars={{ translations: main }}>
+    window.translations = {
+      price: translations.price,
+      liquidations: translations.liquidations,
+      open_interest: translations.open_interest,
+      volume: translations.volume,
+      text_short: translations.text_short,
+    };
+  </script>
   <script>import 'Scripts/future-market-stats.js';</script>
 </Fragment>

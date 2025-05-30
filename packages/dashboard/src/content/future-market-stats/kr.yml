@@ -11,9 +11,13 @@ main:
   volume: 거래량
   liquidations: 청산
   text_short:
-    longs: L
-    shorts: S
-    open: O
-    close: C
-    high: H
-    low: L
+    longs: 롱
+    shorts: 숏
+    open: 시
+    close: 종
+    high: 고
+    low: 저
+  month: 월
+  week: 주
+  day: 일
+  hour: 시간

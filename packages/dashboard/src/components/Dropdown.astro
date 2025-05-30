@@ -1,13 +1,14 @@
 ---
 interface Props {
-   items: string[] | Record<string, string>;
-  selected?: string;
+  items: string[] | Record<string, string>;
+  store: string;
   eventName?: string;
   widthClass?: string;
 }
 import Svg from './Svg.astro';
 const {
   items,
+  store,
   eventName = 'item-changed',
   widthClass = 'w-40',
 } = Astro.props as Props;
@@ -16,22 +17,20 @@ const entries = Array.isArray(items)
   ? items.map(item => [item, item])
   : Object.entries(items);
 
-const defaultSelected = entries[0][0];
-const { selected = defaultSelected } = Astro.props as Props;
 ---
 <div
-  x-data={`{ open: false, selected: '${selected}' }`}
+  x-data={`{ open: false, selected: $store.${store} }`}
   class="relative"
   x-cloak
   @click.outside="open = false"
 >
+
   <button
-    id="dropdown-button"
     type="button"
     @click="open = !open"
     class="p-2.5 text-sm font-semibold leading-6 text-gray-900 bg-white rounded-md shadow-none hover:bg-gray-50 focus:outline-none flex items-center"
   >
-    <span x-text="selected"></span>
+    <span x-text={`$store.${store}`}></span>
     <Svg src="chevron-down" class="ml-2 h-5 w-5 text-gray-400" />
   </button>
 
@@ -55,9 +54,9 @@ const { selected = defaultSelected } = Astro.props as Props;
         type="button"
         role="menuitem"
         tabindex="-1"
-        @click={`selected=\'${value}\'; open = false; $dispatch('${eventName}', \'${value}\')`}
+        @click={`\$store.${store}=\'${value}\'; open = false; $dispatch('${eventName}', \'${value}\')`}
         class="block w-full text-left px-3 py-1 text-sm leading-6 text-gray-900 hover:bg-gray-50 transition"
-        :class={`selected === \'${value}\'&&'bg-gray-50'`}
+        :class={`\$store.${store} === \'${value}\'&&'bg-gray-50'`}
       >
         {label}
       </button>

@@ -1,3 +1,4 @@
+import Alpine from 'alpinejs';
 import {
   CrosshairMode,
   LineStyle,
@@ -22,14 +23,21 @@ import {
   LightChart,
   formatAmount,
   tickMarkFormatter
-} from './utils/charts.js'
+} from './utils/charts/light-weight.js'
+// import { ChartTools } from './utils/charts/tools.js'
 import watermark from 'Images/td-logo-black-pools.svg?url'
-import { HorizontalLinePlugin } from './utils/charts/tools/hline.js'
 import { TooltipPrimitive } from './utils/charts/tooltip/tooltip.ts'
+import { chartState } from './utils/charts/state.js'
+import { ChartToolsManager } from './utils/charts/tools/manager.js'
+import { HorizontalLinesTool } from './utils/charts/tools/lines/h.js';
+import { VerticalLinesTool } from './utils/charts/tools/lines/v.js';
+import { ScreenshotTool } from './utils/charts/tools/screenshot.js';
+import { FullscreenTool } from './utils/charts/tools/fullscreen.js';
+import { ResetTool } from './utils/charts/tools/reset.js';
 
-let symbol = 'BTC'
-let interval = '1d'
+Alpine.store('loaded', true);
 
+console.log(window.translations);
 const chart = new LightChart('full-chart', {
   watermark: {
     paneIndex: 0,
@@ -96,7 +104,10 @@ const chart = new LightChart('full-chart', {
       type: CandlestickSeries,
       pane: {
         index: 0,
-        height: 300
+        height: 300,
+        label({ open, high, low, close }) {
+          console.log('HOALA');
+        }
       },
       options: {
         wickUpColor: COLOR_LONG,
@@ -165,34 +176,66 @@ const chart = new LightChart('full-chart', {
   ]
 })
 
+const toolsManager = new ChartToolsManager(chart, chartState, {
+  'h-line-btn': {
+    class: HorizontalLinesTool,
+    config: { color: '#ff0000', width: 2 }
+  },
+  'v-line-btn': {
+    class: VerticalLinesTool,
+    config: { color: '#0000ff', width: 2 }
+  },
+  'fullscreen-btn': {
+    class: FullscreenTool,
+  },
+  'screenshot-btn': {
+    class: ScreenshotTool,
+    config: { 
+      filename: 'my-chart.png' ,
+      backgroundColor: '#ffffff',
+      fontSize: 12,
+      fontFamily: 'Inter Variable, sans-serif',
+      textColor: '#333333',
+    }
+  },
+  'reset-btn': {
+    class: ResetTool
+  }
+})
+
+/*
+toolsManager
+  .addTool('hLines', HorizontalLinesTool, { color: '#ff0000', width: 2 })
+  .addTool('vLines', VerticalLinesTool, { color: '#0000ff', width: 2 })
+  .addTool('fullscreen', FullscreenTool)
+  .addTool('screenshot', ScreenshotTool, { filename: 'my-chart.png' })
+  .addTool('reset', ResetTool)
+  .bindButton('h-line-btn', 'hLines', 'toggle')
+  .bindButton('v-line-btn', 'vLines', 'toggle')
+  .bindButton('fullscreen-btn', 'fullscreen', 'execute')
+  .bindButton('screenshot-btn', 'screenshot', 'execute')
+  .bindButton('reset-btn', 'reset', 'execute')
+*/
+
 Loader.register(
   'loading-spinner',
   'loading-overlay',
   'loading-error'
 )
 
-document.addEventListener('symbol-changed', e => {
-  symbol = e.detail
-  fetchAndDraw(symbol, interval)
+document.addEventListener('symbol-changed', async(e) => {
+  fetchAndDraw(await chartState.saveMeta({ symbol: e.detail }))
 })
 
-document.addEventListener('interval-changed', e => {
-  interval = e.detail
-  fetchAndDraw(symbol, interval)
+document.addEventListener('interval-changed', async (e) => {
+  fetchAndDraw(await chartState.saveMeta({ interval: e.detail }))
 })
 
-window.addEventListener('load', () => {
-  fetchAndDraw(symbol, interval)
-})
-
-async function fetchAndDraw (symbol, interval) {
+async function fetchAndDraw ({ symbol, interval }) {
   Loader.show()
   try {
     const { oi, price, volume, liquidation } = await marketStats.history(symbol.toLowerCase(), interval)
     const [priceSeries, ioSeries, vlSeries, lq1Series, lq2Series] = chart
-      .tools({
-        color: COLOR_PRIMARY
-      })
       .render(
         interval,
         price,
@@ -203,8 +246,16 @@ async function fetchAndDraw (symbol, interval) {
           shorts.push({ time: d.time, value: -Math.abs(d.shorts) })
           return [longs, shorts]
         }, [[], []])
-
       )
+      await toolsManager.setSymbol(symbol)
+      /*
+      ChartTools.create(chart, symbol, chartState, {
+        lineColor: '#000000',
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed
+      }).render()
+      */
+
     /*
     const lineOptionsAutoPrice = {
       chart: chart.chart,
@@ -245,3 +296,11 @@ async function fetchAndDraw (symbol, interval) {
     Loader.hide(0, err)
   }
 }
+
+(async () => {
+  const { symbol, interval } = await chartState.loadMeta()
+  console.log(symbol, interval);
+  Alpine.store('symbol', symbol)
+  Alpine.store('interval', interval)
+  fetchAndDraw({ symbol, interval })
+})();

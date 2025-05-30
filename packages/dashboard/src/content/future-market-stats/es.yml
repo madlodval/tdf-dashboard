@@ -17,3 +17,7 @@ main:
     close: C
     high: H
     low: L
+  month: mes
+  week: semana
+  day: dia
+  hour: hora

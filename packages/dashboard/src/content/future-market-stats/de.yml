@@ -17,3 +17,8 @@ main:
     close: C
     high: H
     low: L
+  month: Monat
+  week: Woche
+  day: Tag
+  hour: Stunde
+
