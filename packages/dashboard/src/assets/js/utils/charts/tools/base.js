@@ -1,5 +1,5 @@
 export class BaseChartTool {
-  constructor(chartInstance, symbol, stateManager, config = {}) {
+  constructor (chartInstance, symbol, stateManager, config = {}) {
     this.chart = chartInstance
     this.chartCore = chartInstance.getChart()
     this.container = chartInstance.getContainer()
@@ -11,55 +11,55 @@ export class BaseChartTool {
     this.handlers = {}
   }
 
-  getDefaultConfig() {
+  getDefaultConfig () {
     return {}
   }
 
-  enable() {
+  enable () {
     if (this.isEnabled) return this
     this.isEnabled = true
     this._subscribeEvents()
     return this
   }
 
-  disable() {
+  disable () {
     if (!this.isEnabled) return this
     this.isEnabled = false
     this._unsubscribeEvents()
     return this
   }
 
-  toggle() {
+  toggle () {
     return this.isEnabled ? this.disable() : this.enable()
   }
 
-  _subscribeEvents() {
+  _subscribeEvents () {
     // Override in subclasses
   }
 
-  _unsubscribeEvents() {
+  _unsubscribeEvents () {
     // Override in subclasses
   }
 
-  async _loadSavedData() {
+  async loadSavedData () {
     // Override in subclasses
   }
 
-  async _saveData() {
+  async _saveData () {
     // Override in subclasses
   }
 
-  destroy() {
+  destroy () {
     this.disable()
     this._cleanup()
   }
 
-  reset() {
+  reset () {
     this.disable()
     this._cleanup()
   }
 
-  _cleanup() {
+  _cleanup () {
     // Override in subclasses
   }
 }

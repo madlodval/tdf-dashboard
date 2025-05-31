@@ -1,34 +1,11 @@
 import { BaseChartTool } from './base.js'
 
-export function fullscreenCharts (callback) {
-  const root = document.body
-
-  const handleFullscreenChange = () => {
-    if (!document.fullscreenElement) {
-      if (typeof callback === 'function') {
-        callback()
-      }
-      document.removeEventListener('fullscreenchange', handleFullscreenChange)
-    }
-  }
-
-  document.addEventListener('fullscreenchange', handleFullscreenChange)
-
-  if (!document.fullscreenElement) {
-    root.requestFullscreen().catch((err) => {
-      console.error(`Error attempting to enable fullscreen: ${err.message}`)
-    })
-  } else {
-    document.exitFullscreen()
-  }
-}
-
 export class FullscreenTool extends BaseChartTool {
-  constructor(chartInstance, symbol, stateManager, config = {}) {
+  constructor (chartInstance, symbol, stateManager, config = {}) {
     super(chartInstance, symbol, stateManager, config)
   }
 
-  execute() {
+  execute () {
     this.container.classList.add('full-screen')
     this.fullscreenCharts(() => {
       this.container.classList.remove('full-screen')
@@ -42,7 +19,7 @@ export class FullscreenTool extends BaseChartTool {
     }, 100)
   }
 
-  fullscreenCharts(callback) {
+  fullscreenCharts (callback) {
     const root = document.body
 
     const handleFullscreenChange = () => {
@@ -65,9 +42,8 @@ export class FullscreenTool extends BaseChartTool {
     }
   }
 
-  // Esta herramienta no necesita eventos persistentes
-  _subscribeEvents() {}
-  _unsubscribeEvents() {}
-  async _loadSavedData() {}
-  async _saveData() {}
+  _subscribeEvents () {}
+  _unsubscribeEvents () {}
+  async loadSavedData () {}
+  async _saveData () {}
 }

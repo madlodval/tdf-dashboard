@@ -4,6 +4,7 @@ import {
 	SeriesOptionsMap,
 } from 'lightweight-charts';
 import { TooltipPrimitiveOptions } from './options';
+import { TooltipElement } from './element';
 
 
 export interface TooltipCrosshairLineData {
@@ -17,6 +18,6 @@ export interface TooltipDataSource {
 	chart: IChartApi;
 	series: ISeriesApi<keyof SeriesOptionsMap>;
 	options: TooltipPrimitiveOptions;
-	element: HTMLElement | string;
+	tooltip: TooltipElement;
 	data: TooltipCrosshairLineData;
 }

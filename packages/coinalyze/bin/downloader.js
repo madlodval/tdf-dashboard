@@ -94,7 +94,6 @@ function getDefaultRange (now, interval) {
 function parseDateOrTimestamp (val, fallback, isEndOfDay = false) {
   if (val === undefined || val === null) return fallback
   if (/^\d+$/.test(val)) return parseInt(val, 10)
-
   const d = new Date(val)
   if (!isNaN(d.getTime())) {
     if (isEndOfDay) {
@@ -102,7 +101,7 @@ function parseDateOrTimestamp (val, fallback, isEndOfDay = false) {
     } else {
       d.setUTCHours(0, 0, 0, 0)
     }
-    return ensureInterval(d.getTime(), isEndOfDay)
+    return getSeconds(d)
   }
   return fallback
 }

@@ -2,17 +2,17 @@ import { BaseLinesTool, LINE_TYPE_VERTICAL } from './base.js'
 import { VLine } from '@tdf/lwc-plugin-vline'
 
 export class VerticalLinesTool extends BaseLinesTool {
-  getLineType() {
+  getLineType () {
     return LINE_TYPE_VERTICAL
   }
 
-  _createSingleLine(param, lineGroup) {
+  _createSingleLine (param, lineGroup) {
     const time = param.time
     lineGroup.time = time
-    
+
     this.seriesInstances.forEach(series => {
       const line = new VLine(time, this._createLineStyle())
-      
+
       this._assignLineMetadata(line, lineGroup)
       line._series = series
       line._time = time
@@ -21,13 +21,13 @@ export class VerticalLinesTool extends BaseLinesTool {
     })
   }
 
-  _removeSingleLine(vLine) {
+  _removeSingleLine (vLine) {
     if (vLine._series) {
       vLine._series.detachPrimitive(vLine)
     }
   }
 
-  _calculateLineDistance(lineGroup, param) {
+  _calculateLineDistance (lineGroup, param) {
     if (lineGroup.time === null) {
       return null
     }
@@ -39,10 +39,10 @@ export class VerticalLinesTool extends BaseLinesTool {
     return null
   }
 
-  _recreateSavedLine(lineGroup) {
+  _recreateSavedLine (lineGroup) {
     this.seriesInstances.forEach(series => {
       const line = new VLine(lineGroup.time, this._createLineStyle())
-      
+
       this._assignLineMetadata(line, lineGroup)
       line._series = series
       line._time = lineGroup.time

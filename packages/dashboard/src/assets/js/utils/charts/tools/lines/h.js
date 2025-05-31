@@ -1,20 +1,19 @@
 import { BaseLinesTool, LINE_TYPE_HORIZONTAL } from './base.js'
 
-
 export class HorizontalLinesTool extends BaseLinesTool {
-  getLineType() {
+  getLineType () {
     return LINE_TYPE_HORIZONTAL
   }
 
-  _createSingleLine(param, lineGroup) {
+  _createSingleLine (param, lineGroup) {
     const curPane = param.paneIndex
     let isSet = false
     const applyToSeries = new Map()
-    
+
     param.seriesData.forEach((data, series) => {
       const paneIndex = series.getPane().paneIndex()
       let price = data.value || data.close
-      
+
       if (paneIndex === curPane && !isSet) {
         const pointPrice = series.coordinateToPrice(param.point.y)
         if (Object.hasOwn(data, 'high') && Object.hasOwn(data, 'low')) {
@@ -39,7 +38,7 @@ export class HorizontalLinesTool extends BaseLinesTool {
         price,
         ...this._createLineStyle()
       })
-      
+
       this._assignLineMetadata(priceLine, lineGroup)
       priceLine._series = series
       lineGroup.lines.push(priceLine)
@@ -50,13 +49,13 @@ export class HorizontalLinesTool extends BaseLinesTool {
     }
   }
 
-  _removeSingleLine(priceLine) {
+  _removeSingleLine (priceLine) {
     if (priceLine._series) {
       priceLine._series.removePriceLine(priceLine)
     }
   }
 
-  _calculateLineDistance(lineGroup, param) {
+  _calculateLineDistance (lineGroup, param) {
     if (lineGroup.price === null || lineGroup.lines.length === 0) {
       return null
     }
@@ -71,13 +70,13 @@ export class HorizontalLinesTool extends BaseLinesTool {
     return null
   }
 
-  async _recreateSavedLine(lineGroup) {
+  async _recreateSavedLine (lineGroup) {
     this.seriesInstances.forEach(series => {
       const priceLine = series.createPriceLine({
         price: lineGroup.price,
         ...this._createLineStyle()
       })
-      
+
       this._assignLineMetadata(priceLine, lineGroup)
       priceLine._series = series
       lineGroup.lines.push(priceLine)

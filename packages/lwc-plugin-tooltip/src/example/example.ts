@@ -1,6 +1,6 @@
 import { LineSeries, createChart } from 'lightweight-charts';
 import { generateLineData } from '../sample-data';
-import { Tooltip } from '../tooltip';
+import { TooltipPrimitive } from '../tooltip';
 import { LineData, CandlestickData, WhitespaceData } from 'lightweight-charts';
 
 const chart = ((window as unknown as any).chart = createChart('chart', {
@@ -14,7 +14,7 @@ const data = generateLineData();
 lineSeries.setData(data);
 
 
-const primitive = new Tooltip('tooltip', {
+const primitive = new TooltipPrimitive({
 	priceExtractor: (data: LineData | CandlestickData | WhitespaceData) => {
 		if ('value' in data) {
 			return data.value.toFixed(2);
@@ -27,3 +27,7 @@ const primitive = new Tooltip('tooltip', {
 });
 
 lineSeries.attachPrimitive(primitive);
+
+primitive.setData({
+	visible: false
+});

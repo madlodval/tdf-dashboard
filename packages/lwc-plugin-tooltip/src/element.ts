@@ -1,4 +1,4 @@
-import type { IChartApi } from 'lightweight-charts';
+import { IChartApi } from 'lightweight-charts';
 
 export interface TooltipOptions {
 	title: string;

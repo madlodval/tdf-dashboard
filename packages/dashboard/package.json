@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.5",
-    "@tdf/lwc-plugin-anchored-text": "workspace:^",
     "@tdf/lwc-plugin-vline": "workspace:^",
+    "@tdf/lwc-plugin-tooltip": "workspace:^",
     "@tdf/math-utils": "workspace:^",
     "alpinejs": "^3.14.9",
     "chart.js": "^4.4.9",

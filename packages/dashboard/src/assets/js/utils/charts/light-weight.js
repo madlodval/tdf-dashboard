@@ -1,14 +1,12 @@
 /* global ResizeObserver */
 import {
-    createChart,
-    TickMarkType,
-    createImageWatermark,
-  } from 'lightweight-charts'
+  createChart,
+  TickMarkType,
+  createImageWatermark
+} from 'lightweight-charts'
 
-import { AnchoredText } from '@tdf/lwc-plugin-anchored-text';
- 
 const MONTHS = getMonthNames(document.documentElement.lang || 'es', 'short')
-  
+
 export class LightChart {
   constructor (containerId, config) {
     this.containerId = containerId
@@ -33,10 +31,11 @@ export class LightChart {
     }
   }
 
-  render (interval, ...data) {
+  render (interval, scale, ...data) {
     if (!this.container) {
       return {}
     }
+    this.scale = scale;
     this.interval = interval
     this._createChart()
     this._addSeries(data)
@@ -228,13 +227,13 @@ export class LightChart {
       }
 
       if (Object.hasOwn(data, 'value')) {
-        valuesByPane[paneIndex].push(formatAmount(data.value))
+        valuesByPane[paneIndex].push(formatAmount(data.value, this.scale))
       } else if (Object.hasOwn(data, 'close')) {
         valuesByPane[paneIndex].push(
-          formatAmount(data.open),
-          formatAmount(data.high),
-          formatAmount(data.low),
-          formatAmount(data.close)
+          formatAmount(data.open, this.scale),
+          formatAmount(data.high, this.scale),
+          formatAmount(data.low, this.scale),
+          formatAmount(data.close, this.scale)
         )
       }
     })
@@ -265,75 +264,74 @@ export class LightChart {
     }
   }
 
-  async takeScreenshot(includeOHLC = true, options = {}) {
+  async takeScreenshot (includeOHLC = true, options = {}) {
     if (!includeOHLC) {
-      return this.chart.takeScreenshot();
+      return this.chart.takeScreenshot()
     }
-    
-    return this.takeScreenshotWithOHLC(options);
+
+    return this.takeScreenshotWithOHLC(options)
   }
 
+  async takeScreenshotWithOHLC (options = {}) {
+    const chartCanvas = this.chart.takeScreenshot()
 
-  async takeScreenshotWithOHLC(options = {}) {
-      const chartCanvas = this.chart.takeScreenshot();
-      
-      const finalCanvas = document.createElement('canvas');
-      const ctx = finalCanvas.getContext('2d');
-      
-      // Obtener la estructura de labels con sus posiciones reales
-      const labelStructure = this._getLabelsWithPositions(options);
-      
-      finalCanvas.width = chartCanvas.width;
-      finalCanvas.height = chartCanvas.height;     
-      // Fondo
-      ctx.fillStyle = options.backgroundColor || 'transparent';
-      ctx.drawImage(chartCanvas, 0, 0);
-      ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-      
-      // Dibujar los labels usando las posiciones calculadas
-      this._drawLabelsAtCorrectPositions(ctx, labelStructure, options);
-      
-      // Dibujar el chart desplazado hacia abajo
-      
-      return finalCanvas;
+    const finalCanvas = document.createElement('canvas')
+    const ctx = finalCanvas.getContext('2d')
+
+    // Obtener la estructura de labels con sus posiciones reales
+    const labelStructure = this._getLabelsWithPositions(options)
+
+    finalCanvas.width = chartCanvas.width
+    finalCanvas.height = chartCanvas.height
+    // Fondo
+    ctx.fillStyle = options.backgroundColor || 'transparent'
+    ctx.drawImage(chartCanvas, 0, 0)
+    ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+
+    // Dibujar los labels usando las posiciones calculadas
+    this._drawLabelsAtCorrectPositions(ctx, labelStructure, options)
+
+    // Dibujar el chart desplazado hacia abajo
+
+    return finalCanvas
   }
-  
-  _getLabelsWithPositions(options = {}) {
-    const structure = [];
-    const containerRect = this.container.getBoundingClientRect();
-    console.log(this.container);
-    const offsetLeft = options.offsetLeft || 5;
-    const offsetTop = options.offsetTop || 5;
+
+  _getLabelsWithPositions (options = {}) {
+    const structure = []
+    const containerRect = this.container.getBoundingClientRect()
+    console.log(this.container)
+    const offsetLeft = options.offsetLeft || 5
+    const offsetTop = options.offsetTop || 5
     // Recorrer los labels en el mismo orden que _setupPanes
     Object.entries(this.labels).forEach(([paneIndex, labelElement]) => {
-      if (!labelElement || labelElement.hasAttribute('hidden')) return;
-      
-      const labelRect = labelElement.getBoundingClientRect();
-      
+      if (!labelElement || labelElement.hasAttribute('hidden')) return
+
+      const labelRect = labelElement.getBoundingClientRect()
+
       // Obtener los elementos OHLC de este pane
-      const ohlcElements = this.ohclElements[paneIndex] || {};
-      const values = [];
+      const ohlcElements = this.ohclElements[paneIndex] || {}
+      const values = []
       Object.values(ohlcElements).forEach(element => {
         if (element && element.textContent && element.style.opacity !== '0') {
-          const ohlcRect = element.getBoundingClientRect();
-          const font = this._getElementFont(element, options.font);
-          const text = element.textContent.trim();
-          const lineHeight = this._getLineHeight(element);
+          const ohlcRect = element.getBoundingClientRect()
+          const font = this._getElementFont(element, options.font)
+          const text = element.textContent.trim()
+          const lineHeight = this._getLineHeight(element)
           values.push({
             text,
             font,
             color: this._getElementColor(element, options.color),
             left: ohlcRect.left - containerRect.left + offsetLeft,
-            top: (ohlcRect.top - containerRect.top) + 
-              (lineHeight - this._getTextHeight(text, font)) / 2,
-          });
+            top: (ohlcRect.top - containerRect.top) +
+              (lineHeight - this._getTextHeight(text, font)) / 2
+          })
         }
-      });
-      
+      })
+
       if (values.length > 0) {
-        const text = labelElement.firstChild.textContent.trim();
-        const font = this._getElementFont(labelElement, options.font);
-        const lineHeight = this._getLineHeight(labelElement);
+        const text = labelElement.firstChild.textContent.trim()
+        const font = this._getElementFont(labelElement, options.font)
+        const lineHeight = this._getLineHeight(labelElement)
         structure.push({
           paneIndex: parseInt(paneIndex),
           text,
@@ -343,89 +341,89 @@ export class LightChart {
             lineHeight - this._getTextHeight(text, font)
           ) / 2,
           left: labelRect.left - containerRect.left + offsetLeft,
-          values: values
-        });
+          values
+        })
       }
-    });
-    
+    })
+
     // Ordenar por posición vertical (igual que en tu código original)
-    return structure.sort((a, b) => a.top - b.top);
+    return structure.sort((a, b) => a.top - b.top)
   }
-  
-  _drawLabelsAtCorrectPositions(ctx, labelStructure) {   
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    
+
+  _drawLabelsAtCorrectPositions (ctx, labelStructure) {
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+
     labelStructure.forEach(({ top, left, color, font, text, values }) => {
-      ctx.fillStyle = color;
-      ctx.font = font;
-      ctx.fillText(text, left, top);
+      ctx.fillStyle = color
+      ctx.font = font
+      ctx.fillText(text, left, top)
 
-      values.forEach(({ color, font, text, left, top}) => {
-        ctx.fillStyle = color;
-        ctx.font = font;
-        ctx.fillText(text, left, top);
-      });
-    });
+      values.forEach(({ color, font, text, left, top }) => {
+        ctx.fillStyle = color
+        ctx.font = font
+        ctx.fillText(text, left, top)
+      })
+    })
   }
 
-  _getTextHeight(text, font) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    ctx.font = font;
-    
-    const metrics = ctx.measureText(text);
-    
+  _getTextHeight (text, font) {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    ctx.font = font
+
+    const metrics = ctx.measureText(text)
+
     // Usar las nuevas propiedades si están disponibles
     if (metrics.fontBoundingBoxAscent !== undefined && metrics.fontBoundingBoxDescent !== undefined) {
-      const height = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
-      return height;
+      const height = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent
+      return height
     }
-    
+
     // Fallback: extraer el tamaño de la fuente del string font
-    const fontSize = parseInt(font.match(/\d+/)?.[0] || '16');
-    return fontSize;
+    const fontSize = parseInt(font.match(/\d+/)?.[0] || '16')
+    return fontSize
   }
 
-  _getElementColor(element) {
+  _getElementColor (element) {
     try {
-      const computedStyle = window.getComputedStyle(element);
-      return computedStyle.color || '#333333';
+      const computedStyle = window.getComputedStyle(element)
+      return computedStyle.color || '#333333'
     } catch (error) {
-      return '#333333';
+      return '#333333'
     }
   }
 
-  _getLineHeight(element) {
-    const computedStyle = window.getComputedStyle(element);
-    let lineHeight = computedStyle.lineHeight;
-    
+  _getLineHeight (element) {
+    const computedStyle = window.getComputedStyle(element)
+    const lineHeight = computedStyle.lineHeight
+
     if (lineHeight.includes('px')) {
-      return parseFloat(lineHeight);
+      return parseFloat(lineHeight)
     }
-    
-    const fontSize = parseFloat(computedStyle.fontSize);
-    
+
+    const fontSize = parseFloat(computedStyle.fontSize)
+
     if (lineHeight === 'normal' || !isNaN(parseFloat(lineHeight))) {
-      const multiplier = lineHeight === 'normal' ? 1.5 : parseFloat(lineHeight);
-      return fontSize * multiplier;
+      const multiplier = lineHeight === 'normal' ? 1.5 : parseFloat(lineHeight)
+      return fontSize * multiplier
     }
-    
+
     // Fallback: valor por defecto de Tailwind
-    return fontSize * 1.5;
+    return fontSize * 1.5
   }
 
-  _getElementFont(element) {
+  _getElementFont (element) {
     try {
-      const computedStyle = window.getComputedStyle(element);
-      console.log('FONT: ' + computedStyle.font);
-      return computedStyle.font || '11px Inter Variable, sans-serif';
+      const computedStyle = window.getComputedStyle(element)
+      console.log('FONT: ' + computedStyle.font)
+      return computedStyle.font || '11px Inter Variable, sans-serif'
     } catch (error) {
-      console.log('ERROR: ' + error);
-      return '11px Inter Variable, sans-serif';
+      console.log('ERROR: ' + error)
+      return '11px Inter Variable, sans-serif'
     }
   }
-   
+
   destroy () {
     if (this.chart) {
       this._unsubscribeEvents()
@@ -494,41 +492,45 @@ export class LightChart {
   }
 
   // Métodos públicos para herramientas externas
-  getChart() {
+  getChart () {
     return this.chart
   }
 
-  getSeriesInstances() {
+  getSeriesInstances () {
     return this.seriesInstances
   }
 
-  getContainer() {
+  getContainer () {
     return this.container
   }
 }
 
 // Funciones de utilidad permanecen igual...
-export function formatAmount (val) {
+export function formatAmount (val, scale) {
   const n = Number(val)
   if (isNaN(n)) {
     return val
   }
 
-  const absN = Math.abs(n)
+  const absN = Math.abs(n * scale)
+
   let result = ''
 
   if (n < 0) {
     result += '-'
   }
 
-  if (absN >= 1e9) {
+  if (absN >= 1e12) {
+    result += '$' + (absN / 1e12).toFixed(2) + 'T'
+  } else if (absN >= 1e9) {
     result += '$' + (absN / 1e9).toFixed(2) + 'B'
   } else if (absN >= 1e6) {
     result += '$' + (absN / 1e6).toFixed(2) + 'M'
   } else if (absN >= 1e3) {
     result += '$' + (absN / 1e3).toFixed(2) + 'K'
   } else {
-    result = n.toLocaleString('en-US', {
+    const originalValue = n * scale
+    result = originalValue.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
       useGrouping: true
